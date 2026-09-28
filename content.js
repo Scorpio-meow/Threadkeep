@@ -99,14 +99,23 @@ function handleEmbedFrameResize() {
     if (embedEl) ro.observe(embedEl);
   }
   attachMediaListeners();
+  let moScheduled = false;
   const mo = new MutationObserver(() => {
+    if (moScheduled) return;
+    moScheduled = true;
+    setTimeout(() => {
+      moScheduled = false;
+      handleEmbedMutations();
+    }, 16);
+  });
+  const handleEmbedMutations = () => {
     const embedEl = document.querySelector('.Embed') || document.querySelector('div[id^="u_0_0_"]');
     if (ro && embedEl) {
       try { ro.observe(embedEl); } catch (_) { }
     }
     attachMediaListeners();
     notify();
-  });
+  };
   if (document.body) {
     mo.observe(document.body, { childList: true, subtree: true, attributes: true });
   }
@@ -130,8 +139,14 @@ function init() {
     setTimeout(init, 500);
     return;
   }
-  const observer = new MutationObserver((mutations) => {
-    addSaveButtons();
+  let addButtonsScheduled = false;
+  const observer = new MutationObserver(() => {
+    if (addButtonsScheduled) return;
+    addButtonsScheduled = true;
+    requestAnimationFrame(() => {
+      addButtonsScheduled = false;
+      addSaveButtons();
+    });
   });
   observer.observe(document.body, {
     childList: true,
