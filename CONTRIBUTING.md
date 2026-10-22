@@ -91,7 +91,7 @@
 
 - 新增或修改儲存欄位時，同步更新 README 的[資料模型與儲存 Schema](./README.md#資料模型與儲存-schema)、[llms.txt](./llms.txt)（英文）與匯入匯出模組。
 - 使用者看得到的行為改變，請同步更新 README 對應段落；若介紹頁（`docs/index.html`）有提到，也一併修改。
-- 過濾規則的數量（目前為 41 條）寫在 README 與 llms.txt 裡，增減規則時請一起更新。
+- 過濾規則的數量（目前為 44 條）寫在 README 與 llms.txt 裡，增減規則時請一起更新。
 - 版本號與 Changelog 由維護者在發版時整理，PR 不需要修改 `manifest.json` 的 `version`，但請在 PR 說明中寫出這次變更對使用者的影響。
 
 ## Commit 訊息

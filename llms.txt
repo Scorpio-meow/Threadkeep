@@ -92,7 +92,9 @@ interface SavedArticle {
 
 ### 1. Top-Level Text Container Layout Extraction
 - Targets primary content nodes: `span[class*="xo1l8bm"][dir="auto"]`, `span[class*="xi7mnp6"][dir="auto"]`, and `div[class*="x1iorvi4"][dir="auto"]`.
-- Strictly ignores `time` tags, permalink tags (`a[href*="/post/"]`, `a[href*="/t/"]`), author header links (`a[href*="/@"]`), and Meta AI promotional text.
+- Strictly ignores `time` tags, permalink tags (`a[href*="/post/"]`, `a[href*="/t/"]`), author header links (`a[href*="/@"]`), topic and trending-topic chips (`a[href*="/search"]`), and Meta AI promotional text.
+- Drops containers that hold real media (`video`, `picture`, `canvas`, or an `img` without `aria-hidden="true"`); inline GIF stickers and emoji images inside the post text are marked `aria-hidden="true"` and do not cause the text to be discarded.
+- On single post pages, the `threads_post_page_0` pagelet is only used as the search root when it contains text; Threads now renders it as an empty placeholder and puts the target post in a later pagelet, so the post is located through its permalink instead.
 - Applies `isLikelyImageOnlyDescription` heuristic to filter out media captions.
 - Deduplicates containers hierarchically and invokes `innerText.trim()`, preserving paragraph breaks and `<br>` elements without whitespace collapse.
 
@@ -109,9 +111,9 @@ interface SavedArticle {
 - All tags are normalized with `String.prototype.normalize('NFC')` and deduplicated through a `Set`.
 - The injected `extractPostInfoFromPage` used by the background update queue runs the same logic, so every update also refreshes the tag list.
 
-### 4. 41-Rule Noise & Timestamp Filtering Pipeline
+### 4. 44-Rule Noise & Timestamp Filtering Pipeline
 - `cleanExtractedPostContent` normalizes whitespace, strips carousel counters (e.g., 1/5), translation buttons, and "view original" labels, then collapses redundant blank lines.
-- `isLikelyThreadsFallbackDescription` evaluates every line against 41 regular expressions covering relative timestamps (e.g., "2d", "1h", "just now", "yesterday"), follower metrics, thread counts, view counts, and navigation items across Traditional Chinese and English UI locales. Matching lines are dropped entirely.
+- `isLikelyThreadsFallbackDescription` evaluates every line against 44 regular expressions covering relative timestamps (e.g., "2d", "1h", "just now", "yesterday"), follower metrics, thread counts, view counts, post header labels ("Pinned", "Author", lone "·" separators), and navigation items across Traditional Chinese and English UI locales. Matching lines are dropped entirely.
 
 ### 5. Live Preview Protocol & Dynamic Height Adaptation
 - Dual-tab interface supporting Official Embed preview and Raw Source/Metadata inspection.

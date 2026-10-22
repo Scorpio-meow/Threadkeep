@@ -149,7 +149,8 @@ function isSinglePostPage() {
   return path.includes('/post/') || /^\/t\/[^\/]+/.test(path);
 }
 function extractContentFromDOM(container) {
-  const postPage0 = container.querySelector('[data-pagelet="threads_post_page_0"]');
+  const pagelet0 = container.querySelector('[data-pagelet="threads_post_page_0"]');
+  const postPage0 = pagelet0 && pagelet0.textContent.trim() ? pagelet0 : null;
   const searchRoot = postPage0 || container;
   let rawContainers = Array.from(
     searchRoot.querySelectorAll(
@@ -173,7 +174,8 @@ function extractContentFromDOM(container) {
     if (el.closest('time') || el.querySelector('time')) return false;
     if (el.closest('a[href*="/post/"]') || el.closest('a[href*="/t/"]') || el.querySelector('a[href*="/post/"]') || el.querySelector('a[href*="/t/"]')) return false;
     if (el.closest('a[href*="/@"]')) return false;
-    if (el.closest('picture') || el.closest('video') || el.closest('canvas') || el.closest('[aria-roledescription="slide"]') || el.querySelector('img, video, picture, canvas')) return false;
+    if (el.closest('a[href*="/search"]')) return false;
+    if (el.closest('picture') || el.closest('video') || el.closest('canvas') || el.closest('[aria-roledescription="slide"]') || el.querySelector('img:not([aria-hidden="true"]), video, picture, canvas')) return false;
     if (el.closest('.x6s0dn4.xmixu3c.x78zum5.xsag5q8.x1y1aw1k')) return false;
     if (!postPage0 && !el.closest('[data-pressable-container]')) return false;
     let parent = el.parentElement;
@@ -288,6 +290,9 @@ function isLikelyThreadsFallbackDescription(text) {
     /^追蹤中$/,
     /^追蹤$/,
     /^已追蹤$/,
+    /^(?:已釘選|Pinned)$/i,
+    /^(?:作者|Author)$/i,
+    /^[·•]$/,
     /^(?:查看|隱藏)?翻譯$/i,
     /^(?:See|Hide)?\s*translation$/i,
     /^查看原文$/i,

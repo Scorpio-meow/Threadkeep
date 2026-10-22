@@ -1173,6 +1173,9 @@ async function extractPostInfoFromPage(requestedPostLink = '') {
       /^追蹤中$/,
       /^追蹤$/,
       /^已追蹤$/,
+      /^(?:已釘選|Pinned)$/i,
+      /^(?:作者|Author)$/i,
+      /^[·•]$/,
       /^(?:查看|隱藏)?翻譯$/i,
       /^(?:See|Hide)?\s*translation$/i,
       /^查看原文$/i,
@@ -1307,7 +1310,8 @@ async function extractPostInfoFromPage(requestedPostLink = '') {
           if (container.closest('time') || container.querySelector('time')) return false;
           if (container.closest('a[href*="/post/"]') || container.closest('a[href*="/t/"]') || container.querySelector('a[href*="/post/"]') || container.querySelector('a[href*="/t/"]')) return false;
           if (container.closest('a[href*="/@"]')) return false;
-          if (container.closest('picture') || container.closest('video') || container.closest('canvas') || container.closest('[aria-roledescription="slide"]') || container.querySelector('img, video, picture, canvas')) return false;
+          if (container.closest('a[href*="/search"]')) return false;
+          if (container.closest('picture') || container.closest('video') || container.closest('canvas') || container.closest('[aria-roledescription="slide"]') || container.querySelector('img:not([aria-hidden="true"]), video, picture, canvas')) return false;
           if (container.closest('.x6s0dn4.xmixu3c.x78zum5.xsag5q8.x1y1aw1k')) return false;
           let parent = container.parentElement;
           while (parent && parent !== sourceRoot) {
