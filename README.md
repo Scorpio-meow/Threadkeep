@@ -7,7 +7,7 @@
 **[前往介紹頁](https://scorpio-meow.github.io/Threads-embedded-code/)**：功能導覽、互動清洗示範與安裝教學
 
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-D12F35?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threads-embedded-code/)
-[![Version](https://img.shields.io/badge/version-2.2.1-blue?style=for-the-badge)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue?style=for-the-badge)](./manifest.json)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
@@ -205,7 +205,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 ### 5. 背景循序同步與失效監控佇列
 - **循序非同步更新**：點擊「更新貼文資料」時，系統會依照當前篩選與排序後的結果建立佇列（若已勾選貼文，則僅更新勾選項目），並重複使用**同一個背景工作分頁**循序載入，有效避免多開分頁導致的系統卡頓或平台流量限制。
 - **寬鬆的安全上限**：每篇的分頁載入與頁面解析合計最多等 60 秒，超過只記為「失敗」、不標記失效，網路較慢的正常貼文不會被誤判；注入腳本以 `MutationObserver` 在頁面渲染時立即檢查（兩次檢查至少間隔 80ms），不受背景分頁的計時器節流影響。
-- **分批寫回**：每處理 20 篇、按下暫停或佇列結束時，才讀取最新資料、合併後寫回一次，期間在 Threads 新存的貼文不會被覆蓋。進行中只重繪該篇卡片與統計數字，佇列結束後才更新清單篩選與統計雲。
+- **分批寫回**：每處理 20 篇、按下暫停或佇列結束時才寫回一次，而且只寫這幾篇各自的紀錄：先讀取它們目前的內容，只覆蓋發文時間、內文、標籤與失效狀態等欄位，期間被刪除的貼文不會被寫回來，在 Threads 新存的貼文也不受影響。進行中只重繪該篇卡片與統計數字，佇列結束後才更新清單篩選與統計雲。
 - **進度與中斷控制**：即時顯示「更新中 (X/Y)」進度條與百分比動畫，並提供「**暫停 / 繼續**」與「**取消**」功能按鈕。
 - **智慧失效標記與自動恢復**：
   - 若貼文被刪除、轉為私密或發生轉導（`redirected`），系統將自動標記為 `expired` 並記錄原因。
@@ -216,7 +216,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 - **Popup 快速面板**：提供即時搜尋、多維度排序、類型篩選、單篇刪除、複製內嵌代碼、資料匯出與匯入功能。
 - **Dashboard 全頁儀表板**：全螢幕響應式佈局，具備多欄位卡片展示、統計數據看板、批次操作功能與完整預覽。
 - **分批渲染長清單**：清單一次只建立 60 張卡片（Popup 為 30 張），捲到接近底部或按「顯示更多」才載入下一批；卡片上的按鈕事件統一由清單容器委派，Dashboard 卡片另以 `content-visibility: auto` 略過畫面外的排版。
-- **跨介面同步**：Popup 與 Dashboard 監聽 `chrome.storage.onChanged`，在 Threads 新存或在另一個介面刪除的貼文會即時反映到清單；自己寫入引起的事件會略過，不重複重繪。
+- **跨介面同步**：Popup 與 Dashboard 監聽 `chrome.storage.onChanged`，在 Threads 新存或在另一個介面刪除的貼文會即時反映到清單。事件只帶來有變動的那幾篇；內容和畫面上相同的變動（例如自己寫入引起的事件）會略過，不重複重繪。
 - **搜尋範圍**：比對內文、作者、標籤與貼文連結的路徑（`postLink` 去掉網域後的 `/@作者/post/貼文代碼`），可用帳號或貼文代碼找貼文。每篇的搜尋字串在第一次搜尋時建立並快取，排序也先算好每篇的比較值再排序。
 - **批次勾選管理**：支援全選目前頁面與半選（Indeterminate）狀態顯示；未勾選任何項目時，「更新貼文資料」、「批次複製 Embed 代碼」與「批次刪除」一律維持 `disabled`，滑鼠與鍵盤皆無法觸發。
 - **頁內確認 Modal**：兩個介面的破壞性操作（清除全部、批次刪除、覆寫匯入）全面改用頁內 Modal 二次確認，完全不使用原生 `confirm()`、`alert()` 與 `prompt()`；這對 Popup 尤其關鍵——原生對話框會在 Popup 失焦時連同 Popup 一併關閉並回傳預設值。
@@ -286,6 +286,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 ```
 threads-embedded-code/
 ├── manifest.json         # 擴充功能設定檔 (Manifest V3 權限與腳本規則)
+├── article-store.js      # 共用儲存層 (每篇一個 key、舊資料搬移、跨介面同步)
 ├── content.js            # Content Script (DOM 監聽、對話框攔截、文本清洗、資料提取)
 ├── styles.css            # 注入至 Threads 網頁的通知提示樣式
 ├── popup.html            # 瀏覽器工具列彈出視窗 HTML
@@ -309,6 +310,7 @@ threads-embedded-code/
 | 檔案路徑 | 模組層級 | 主要職責與實作內容 |
 | :--- | :--- | :--- |
 | `manifest.json` | 設定層 | 聲明 Manifest V3 規格、儲存與分頁權限、主機比對規則與 CSP 配置。 |
+| `article-store.js` | 儲存層 | 由 content script、Popup 與 Dashboard 共用：決定每篇貼文的儲存 key、搬移舊版 `savedArticles` 陣列、逐篇讀寫與刪除、合併批次更新欄位，以及把 `chrome.storage.onChanged` 的逐篇變動套用到清單。 |
 | `content.js` | 注入腳本層 | 負責監聽 Threads DOM 變化、攔截內嵌對話框、頂層排版提取與正規表達式文本清洗。 |
 | `styles.css` | 注入樣式層 | 定義顯示於 Threads 頁面之儲存成功/失敗浮動通知外觀、進場動畫與 `prefers-reduced-motion` 降級。 |
 | `popup.html` / `popup.js` | 快速檢視層 | 提供 480px 寬度的工具列快速面板，支援即時關鍵字查詢、6 種分類、6 種排序、單篇維護、頁內確認／匯入 Modal 與基本匯出。 |
@@ -334,7 +336,7 @@ flowchart TD
     end
 
     subgraph LocalDatabase["本機安全儲存 (Storage Scope)"]
-        G -->|"safeStorageSet (防例外寫入)"| H[("chrome.storage.local\n[savedArticles]")]
+        G -->|"safeStorageSet (防例外寫入)"| H[("chrome.storage.local\n[post:貼文代碼] 每篇一筆")]
     end
 
     subgraph PopupView["Popup 彈出面板 (480px)"]
@@ -388,7 +390,7 @@ sequenceDiagram
             Queue->>Queue: 更新 timestampTitle, 清除失效狀態 status='active'
         end
         opt 累積 20 篇或按下暫停
-            Queue->>Storage: 讀取最新資料、合併後寫回
+            Queue->>Storage: 只寫回這批貼文各自的紀錄 (合併更新欄位)
         end
         Queue->>UI: 更新進度條與該篇卡片 (X/Y)
     end
@@ -558,14 +560,14 @@ for (const article of articlesNeedingUpdate) {
     clearArticleExpiredStatus(article);                            // 貼文復活則清除失效標記
     // 寫回 timestamp、timestampTitle、content 與 tags
   }
-  pendingPersistCount++;
-  if (pendingPersistCount >= UPDATE_PERSIST_BATCH_SIZE) await flushPendingUpdates(); // 每 20 篇合併寫回
+  pendingArticles.add(article);
+  if (pendingArticles.size >= UPDATE_PERSIST_BATCH_SIZE) await flushPendingUpdates(); // 每 20 篇合併寫回
   refreshRenderedCard(article);                                    // 只重繪這一張卡片
 }
 // finally：關閉工作分頁、寫回剩餘的更新，再整體重繪清單與統計雲
 ```
 
-- **分批合併寫回**：`flushPendingUpdates` 先讀取 `chrome.storage.local` 的最新資料，依 `id` 合併（保留記憶體中已更新的物件，並納入其他頁面新增或刪除的貼文）後才寫回，避免覆蓋佇列進行期間在 Threads 新存的貼文。中途關閉頁面最多遺失最後未寫回的 19 篇更新結果，重新執行即可補上。
+- **分批合併寫回**：`flushPendingUpdates` 呼叫 `mergeArticleUpdates`，只讀取這批貼文各自的 key，把 `timestamp`、`timestampTitle`、`content`、`tags`、失效狀態與 `timestampUpdatedAt` 套到目前儲存的紀錄上再寫回；已不存在的 key 代表貼文在佇列期間被刪除，會直接略過。中途關閉頁面最多遺失最後未寫回的 19 篇更新結果，重新執行即可補上。
 - **分頁生命週期**：工作分頁僅在擷取失敗或整個佇列結束（`finally`）時關閉，其餘時間重複使用，避免反覆開關分頁的成本。
 - **安全上限**：`fetchPostInfoWithReusableTab` 以 60 秒（`POST_FETCH_TIMEOUT_MS`）為上限，涵蓋分頁載入與頁面解析；逾時回傳 `null`，記為失敗並關閉工作分頁，不會標記為失效。注入頁面的解析器以 `MutationObserver` 觸發檢查，兩次檢查至少間隔 80ms（`POST_INFO_CHECK_INTERVAL_MS`）。
 
@@ -616,7 +618,10 @@ window.addEventListener('message', (event) => {
 
 ## 資料模型與儲存 Schema
 
-所有貼文資料均以 `SavedArticle` 物件陣列形式儲存於 `chrome.storage.local` 的 `savedArticles` 鍵中。
+每篇貼文是一個 `SavedArticle` 物件，各自存在 `chrome.storage.local` 的一個 key 底下。key 為 `post:` 加上貼文網址中的貼文代碼（例如 `post:DezKX7tE_q9`）；沒有可辨識連結的匯入資料改用 `post:id:<id>`。同一篇貼文（包括 threads.com 與 threads.net 的網址）會對應到同一個 key，再存一次就是覆蓋。各介面讀取後依 `savedAt` 由新到舊排列。
+
+> [!NOTE]
+> 2.2.1 以前的版本把所有貼文存成 `savedArticles` 鍵裡的一個陣列。新版第一次開啟 Popup、控制面板或在 Threads 存檔時，會把舊陣列拆成逐篇紀錄：只寫入尚未存在的 key（不覆蓋較新的紀錄），同一篇的重複紀錄保留陣列中較前面（較新）的那筆，讀回確認全部寫入後才刪除 `savedArticles`。搬移後改裝舊版會讀不到資料，若需要降版，請先匯出完整備份再匯入。
 
 ### SavedArticle 介面定義
 
@@ -675,6 +680,7 @@ interface SavedArticle {
 ### 儲存空間管理
 
 - **儲存配額**：Chromium `chrome.storage.local` 預設配額為 **10MB**，每篇貼文含官方內嵌碼約 3–4 KB，約兩、三千篇就會用完。本擴充功能宣告 `unlimitedStorage` 權限解除這個上限，實際容量取決於磁碟空間。
+- **逐篇寫入**：在 Threads 存一篇只寫入那一篇（約 3–4 KB），刪除只移除對應的 key，不必讀寫全部資料；開啟 Popup 或控制面板時仍會一次讀取全部貼文。
 - **寫入失敗提示**：若儲存時仍發生錯誤，系統會自動彈出提示。建議定期將資料匯出為「完整版資料備份檔案」並清理不必要的舊資料。
 
 ---
@@ -891,6 +897,18 @@ cd threads-embedded-code
 ## 版本更新紀錄 (Changelog)
 
 本專案嚴格遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 格式規範。
+
+### [2.3.0] - 2026-10-23
+
+#### 新增
+- 新增共用儲存層 `article-store.js`，由 content script、Popup 與控制面板共用同一套儲存 key、讀寫與同步邏輯。
+
+#### 改善
+- 儲存改為每篇一個 key（`post:貼文代碼`），取代單一的 `savedArticles` 陣列。在 Threads 存一篇從讀寫全部資料（2,500 篇約 8 MB）降為只寫入約 3 KB；刪除只移除對應的 key；批次更新每 20 篇寫回約 60 KB。
+- 第一次開啟 Popup、控制面板或在 Threads 存檔時自動搬移舊資料：只寫入尚未存在的貼文、合併同一篇的重複紀錄，讀回確認全部寫入後才刪除舊陣列。搬移後改裝舊版會讀不到資料，降版前請先匯出完整備份。
+- 同一篇貼文的 threads.com 與 threads.net 網址視為同一筆，匯入合併時也以此判斷重複。
+- 跨介面同步改為只處理有變動的貼文，移除以 id 清單辨識自己寫入的機制；批次更新寫回時只合併更新欄位，佇列期間被刪除的貼文不會被寫回來。
+- 復原刪除時，不會蓋掉同一篇在復原期間被重新儲存的版本。
 
 ### [2.2.1] - 2026-10-23
 

@@ -681,7 +681,7 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
           <article class="note" data-reveal>
             <h3 class="note__title">單一工作分頁的循序佇列</h3>
             <p class="note__text">每一輪先檢查取消與暫停，再用同一個背景分頁載入下一篇，每篇最多等 60 秒，逾時只算失敗、不標成失效。結果每 20
-              篇、按下暫停或佇列結束時寫回一次，寫回前先讀取最新資料再合併，佇列進行中新存的貼文不會被覆蓋。</p>
+              篇、按下暫停或佇列結束時寫回一次，只寫這幾篇各自的紀錄並合併更新欄位；佇列期間被刪除的不會被寫回來，新存的貼文也不受影響。</p>
             <pre class="code code--sm"><code data-highlight>for (const article of articlesNeedingUpdate) {
   if (cancelUpdateRequested) break;
   if (isUpdatePaused) await flushPendingUpdates();
@@ -691,8 +691,8 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
   const tabId = await getOrCreateWorkerTab();
   const postInfo = await fetchPostInfoWithReusableTab(tabId, article.postLink);
   // 失效就標記原因，恢復就清除標記
-  pendingPersistCount++;
-  if (pendingPersistCount &gt;= UPDATE_PERSIST_BATCH_SIZE) await flushPendingUpdates();
+  pendingArticles.add(article);
+  if (pendingArticles.size &gt;= UPDATE_PERSIST_BATCH_SIZE) await flushPendingUpdates();
 }</code></pre>
             <p class="note__source">簡化自 <code>dashboard.js</code> 的背景更新流程</p>
           </article>

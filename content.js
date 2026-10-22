@@ -678,33 +678,30 @@ async function saveArticle(articleData, button) {
       author: articleData.author,
       contentLength: articleData.content?.length
     });
-    const result = await safeStorageGet(['savedArticles']);
-    const savedArticles = result.savedArticles || [];
-    console.log('[Threads Saver] 目前已儲存文章數:', savedArticles.length);
-    console.log('[Threads Saver] 準備儲存的文章連結:', articleData.postLink);
-    const existingIndex = savedArticles.findIndex(
-      article => article.postLink === articleData.postLink
-    );
-    console.log('[Threads Saver] 檢查重複結果:', existingIndex !== -1 ? `已存在於索引 ${existingIndex}` : '新文章');
-    if (existingIndex !== -1) {
-      console.log('[Threads Saver] 文章已存在於索引', existingIndex, ',將更新');
-      savedArticles[existingIndex] = articleData;
-      console.log('[Threads Saver] 開始寫入更新...');
-      await safeStorageSet({ savedArticles });
+    if (isExtensionAlive()) {
+      try {
+        await migrateLegacyArticles();
+      } catch (migrateError) {
+        console.warn('[Threads Saver] 舊資料搬移失敗，本篇仍會單獨儲存:', migrateError);
+      }
+    }
+    const storageKey = getArticleStorageKey(articleData);
+    console.log('[Threads Saver] 準備儲存的文章:', storageKey);
+    const result = await safeStorageGet([storageKey]);
+    const isExisting = storageKey in result;
+    console.log('[Threads Saver] 檢查重複結果:', isExisting ? '已存在，將更新' : '新文章');
+    if (isExisting) {
+      await safeStorageSet({ [storageKey]: articleData });
       console.log('[Threads Saver] 更新成功!');
       if (button) {
         button.classList.add('saved');
       }
       showNotification('內嵌程式碼已更新');
     } else {
-      console.log('[Threads Saver] 新文章,將新增到列表');
-      console.log('[Threads Saver] 新增前文章數:', savedArticles.length);
-      savedArticles.unshift(articleData);
-      console.log('[Threads Saver] 新增後文章數:', savedArticles.length);
       console.log('[Threads Saver] 開始寫入儲存...');
       try {
-        await safeStorageSet({ savedArticles });
-        console.log('[Threads Saver] 儲存成功!現在總共有', savedArticles.length, '篇文章');
+        await safeStorageSet({ [storageKey]: articleData });
+        console.log('[Threads Saver] 儲存成功!');
       } catch (saveError) {
         console.error('[Threads Saver] 寫入失敗:', saveError);
         throw saveError;

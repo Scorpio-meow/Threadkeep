@@ -26,72 +26,37 @@ let renderedCount = 0;
 let loadMoreObserver = null;
 const searchTextCache = new WeakMap();
 const sortCollator = new Intl.Collator('zh-TW');
-const ownWriteSignatures = new Map();
 document.addEventListener('DOMContentLoaded', async () => {
   await loadArticles();
   setupEventListeners();
   setupModalListeners();
   setupStorageSync();
 });
-function getArticleIdSignature(articles) {
-  return articles.map(a => a.id).join('\n');
-}
-async function writeSavedArticles(articles) {
-  const signature = getArticleIdSignature(articles);
-  ownWriteSignatures.set(signature, (ownWriteSignatures.get(signature) || 0) + 1);
-  try {
-    await chrome.storage.local.set({ savedArticles: articles });
-  } catch (err) {
-    const pending = ownWriteSignatures.get(signature) || 0;
-    if (pending <= 1) {
-      ownWriteSignatures.delete(signature);
-    } else {
-      ownWriteSignatures.set(signature, pending - 1);
-    }
-    throw err;
-  }
-}
-function syncWithStoredArticles(storedArticles) {
-  const currentById = new Map(allArticles.map(a => [a.id, a]));
-  const merged = storedArticles.map(a => currentById.get(a.id) || a);
-  const changed = merged.length !== allArticles.length || merged.some((a, i) => a !== allArticles[i]);
-  allArticles = merged;
-  if (changed) {
-    const storedIds = new Set(merged.map(a => a.id));
-    selectedArticleIds.forEach(id => {
-      if (!storedIds.has(id)) selectedArticleIds.delete(id);
-    });
-  }
-  return changed;
-}
-async function persistMergedArticles() {
-  const result = await chrome.storage.local.get(['savedArticles']);
-  syncWithStoredArticles(result.savedArticles || []);
-  await writeSavedArticles(allArticles);
+function pruneSelection() {
+  const ids = new Set(allArticles.map(a => a.id));
+  selectedArticleIds.forEach(id => {
+    if (!ids.has(id)) selectedArticleIds.delete(id);
+  });
 }
 function setupStorageSync() {
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local' || !changes.savedArticles) return;
-    const storedArticles = changes.savedArticles.newValue || [];
-    const signature = getArticleIdSignature(storedArticles);
-    const pending = ownWriteSignatures.get(signature);
-    if (pending) {
-      if (pending <= 1) {
-        ownWriteSignatures.delete(signature);
-      } else {
-        ownWriteSignatures.set(signature, pending - 1);
-      }
-      return;
-    }
-    if (!syncWithStoredArticles(storedArticles)) return;
+    if (areaName !== 'local') return;
+    const result = applyStoredArticleChanges(allArticles, changes);
+    if (!result.changed) return;
+    allArticles = result.articles;
+    pruneSelection();
     calculateStatistics();
     updateFilterValueOptions();
     applyFilters({ keepRendered: true });
   });
 }
 async function loadArticles() {
-  const result = await chrome.storage.local.get(['savedArticles']);
-  allArticles = result.savedArticles || [];
+  try {
+    allArticles = await loadArticleRecords();
+  } catch (err) {
+    console.error('[Dashboard] 讀取資料失敗:', err);
+    showToast('讀取資料失敗：' + (err.message || '請重新整理頁面'), { type: 'error' });
+  }
   filteredArticles = [...allArticles];
   calculateStatistics();
   sortArticles();
@@ -900,11 +865,11 @@ function showUndoToast(message, onUndo, duration = 8000) {
   container.appendChild(toast);
   const timer = setTimeout(dismiss, duration);
 }
-async function restoreArticles(snapshot, message) {
-  const snapshotIds = new Set(snapshot.map(a => a.id));
-  const addedSinceSnapshot = allArticles.filter(a => !snapshotIds.has(a.id));
-  allArticles = [...addedSinceSnapshot, ...snapshot];
-  await writeSavedArticles(allArticles);
+async function restoreArticles(deletedArticles, message) {
+  const presentKeys = new Set(allArticles.map(getArticleStorageKey));
+  const restorable = deletedArticles.filter(a => !presentKeys.has(getArticleStorageKey(a)));
+  await saveArticleRecords(restorable);
+  allArticles = sortArticlesBySavedAt([...allArticles, ...restorable]);
   applyFilters({ keepRendered: true });
   calculateStatistics();
   showToast(message);
@@ -978,13 +943,13 @@ async function deleteArticle(articleId) {
     { confirmText: '刪除' }
   );
   if (!confirmed) return;
-  const snapshot = [...allArticles];
+  const deleted = allArticles.filter(a => a.id === articleId);
   allArticles = allArticles.filter(a => a.id !== articleId);
-  await writeSavedArticles(allArticles);
+  await removeArticleRecords(deleted);
   selectedArticleIds.delete(articleId);
   applyFilters({ keepRendered: true });
   calculateStatistics();
-  showUndoToast('已刪除 1 篇貼文', () => restoreArticles(snapshot, '已復原貼文'));
+  showUndoToast('已刪除 1 篇貼文', () => restoreArticles(deleted, '已復原貼文'));
 }
 async function batchDeleteArticles() {
   if (selectedArticleIds.size === 0) return;
@@ -995,13 +960,13 @@ async function batchDeleteArticles() {
     { confirmText: `刪除 ${count} 篇` }
   );
   if (!confirmed) return;
-  const snapshot = [...allArticles];
+  const deleted = allArticles.filter(a => selectedArticleIds.has(a.id));
   allArticles = allArticles.filter(a => !selectedArticleIds.has(a.id));
-  await writeSavedArticles(allArticles);
+  await removeArticleRecords(deleted);
   selectedArticleIds.clear();
   applyFilters({ keepRendered: true });
   calculateStatistics();
-  showUndoToast(`已批次刪除 ${count} 篇貼文`, () => restoreArticles(snapshot, `已復原 ${count} 篇貼文`));
+  showUndoToast(`已批次刪除 ${count} 篇貼文`, () => restoreArticles(deleted, `已復原 ${count} 篇貼文`));
 }
 async function clearAllArticles() {
   if (allArticles.length === 0) {
@@ -1018,7 +983,7 @@ async function clearAllArticles() {
   allArticles = [];
   filteredArticles = [];
   selectedArticleIds.clear();
-  await writeSavedArticles(allArticles);
+  await removeArticleRecords(snapshot);
   applyFilters();
   calculateStatistics();
   showUndoToast(`已清除 ${snapshot.length} 篇貼文`, () => restoreArticles(snapshot, '已復原全部貼文'));
@@ -1109,13 +1074,13 @@ async function updateAllTimestamps() {
       workerTab = null;
     }
   }
-  let pendingPersistCount = 0;
+  const pendingArticles = new Set();
   let persistFailed = false;
   async function flushPendingUpdates() {
-    if (pendingPersistCount === 0 || persistFailed) return;
+    if (pendingArticles.size === 0 || persistFailed) return;
     try {
-      await persistMergedArticles();
-      pendingPersistCount = 0;
+      await mergeArticleUpdates([...pendingArticles]);
+      pendingArticles.clear();
     } catch (err) {
       persistFailed = true;
       cancelUpdateRequested = true;
@@ -1187,8 +1152,8 @@ async function updateAllTimestamps() {
         failCount++;
       }
       searchTextCache.delete(article);
-      pendingPersistCount++;
-      if (pendingPersistCount >= UPDATE_PERSIST_BATCH_SIZE) {
+      pendingArticles.add(article);
+      if (pendingArticles.size >= UPDATE_PERSIST_BATCH_SIZE) {
         await flushPendingUpdates();
       }
       calculateStatistics();
@@ -1843,19 +1808,19 @@ async function handleImportFile(event) {
       return;
     }
     if (mode === 'merge') {
-      const existingLinks = new Set(allArticles.map(a => a.postLink));
-      const newArticles = importedArticles.filter(a => !existingLinks.has(a.postLink));
+      const existingKeys = new Set(allArticles.map(getArticleStorageKey));
+      const newArticles = Object.values(toArticleRecords(importedArticles)).filter(a => !existingKeys.has(getArticleStorageKey(a)));
       if (newArticles.length === 0) {
         showToast('所有項目都已存在，無需匯入');
         return;
       }
-      allArticles = [...allArticles, ...newArticles];
+      await saveArticleRecords(newArticles);
+      allArticles = sortArticlesBySavedAt([...allArticles, ...newArticles]);
       showToast(`已匯入 ${newArticles.length} 筆新資料（跳過 ${importedArticles.length - newArticles.length} 筆重複）`);
     } else if (mode === 'overwrite') {
-      allArticles = importedArticles;
-      showToast(`已匯入 ${importedArticles.length} 筆資料（取代原有資料）`);
+      allArticles = await replaceAllArticleRecords(allArticles, importedArticles);
+      showToast(`已匯入 ${allArticles.length} 筆資料（取代原有資料）`);
     }
-    await writeSavedArticles(allArticles);
     applyFilters();
     calculateStatistics();
   } catch (err) {

@@ -3,7 +3,7 @@
 
 ## Core Metadata
 - Project Name: Threads Code Saver
-- Current Version: 2.2.1
+- Current Version: 2.3.0
 - Specification: Google Chrome Extensions Manifest V3
 - Tech Stack: Pure Native JavaScript (ES6+), HTML5, CSS3 Custom Properties (Zero external dependencies, zero compilation/build step)
 - Data Persistence: Browser local storage (chrome.storage.local with the `unlimitedStorage` permission, so the default 10MB quota does not apply; privacy-first). Saved data never leaves the browser; network access is limited to Threads domains (live preview and background updates) plus the Google Fonts stylesheets imported by popup.css and dashboard.css.
@@ -13,7 +13,8 @@
 - Companion Showcase Repository: https://github.com/Scorpio-meow/Threads-Featured-Posts (Consumes exported featured post data as its primary dataset)
 
 ## Core Files
-- manifest.json: Extension configuration manifest declaring Manifest V3 specs, permissions (storage, unlimitedStorage, tabs, scripting), host matches for threads.com and threads.net, `all_frames: true` content script injection, and strict CSP headers.
+- manifest.json: Extension configuration manifest declaring Manifest V3 specs, permissions (storage, unlimitedStorage, tabs, scripting), host matches for threads.com and threads.net, `all_frames: true` content script injection (`article-store.js` then `content.js`), and strict CSP headers.
+- article-store.js: Shared storage layer loaded by the content script, the popup, and the dashboard. It derives each post's storage key, migrates the legacy `savedArticles` array, reads, writes, and removes individual records, merges batch-update fields into stored records, and applies per-key `chrome.storage.onChanged` events to an in-memory list.
 - content.js: Primary Content Script. On Threads pages it listens for clicks on the "Get embed code" item through a single delegated capture-phase listener, checks for the official embed dialog at most once per animation frame after DOM mutations (no page-wide button scans or periodic polling), intercepts the dialog, scores embed candidates, extracts top-level text containers, filters image-only descriptions, and strips UI/timestamp noise. Inside `/embed` iframes it switches to `handleEmbedFrameResize()` and reports the measured `.Embed` height to the parent window.
 - styles.css: Injected notification styles for Threads web pages, including live-region toast styling and prefers-reduced-motion fallbacks.
 - popup.html: 480px width browser toolbar popup markup, including the confirm, import-source, import-paste, and import-mode modals.
@@ -27,7 +28,9 @@
 - llms.txt: Structured technical specifications for AI agents and LLM/RAG indexing pipelines.
 
 ## Data Models & Schema
-All post records are stored as an array of SavedArticle objects within the `savedArticles` key in `chrome.storage.local`.
+Each post is one SavedArticle object stored under its own key in `chrome.storage.local`. The key is `post:` plus the post code from the permalink (for example `post:DezKX7tE_q9`); imported records without a recognizable link use `post:id:<id>`. The same post under threads.com and threads.net maps to the same key, so saving it again overwrites the record. Views load all `post:` keys and order them by `savedAt`, newest first.
+
+Versions up to 2.2.1 stored every post in one array under the `savedArticles` key. The first time the popup or dashboard opens, or the content script saves a post, `migrateLegacyArticles` splits that array into per-post records: it writes only keys that do not exist yet (newer records are never overwritten), keeps the earliest array entry (the newest save) when the same post appears twice, reads the keys back to confirm they were all written, and only then removes `savedArticles`. Older versions cannot read migrated data.
 
 ### SavedArticle Interface
 ```typescript
@@ -127,7 +130,7 @@ interface SavedArticle {
 - Queue scope: the selected posts when any checkbox is checked, otherwise the current filtered and sorted list.
 - Executes updates sequentially inside a single reusable hidden tab (`chrome.tabs.update`) to eliminate rate limiting or high CPU usage. The tab is closed on extraction failure and in the `finally` block once the queue ends.
 - Safety cap: `fetchPostInfoWithReusableTab` waits at most 60 seconds (`POST_FETCH_TIMEOUT_MS`) for navigation plus extraction. A timeout returns `null`, which counts as a failure and closes the worker tab; it never marks the post as expired. The injected extractor runs its check from a `MutationObserver`, at most once per 80ms (`POST_INFO_CHECK_INTERVAL_MS`), so it reacts as soon as the page renders and is not slowed by background-tab timer throttling.
-- Supports pause, resume, and cancellation signals. Results are persisted every 20 posts (`UPDATE_PERSIST_BATCH_SIZE`), when pausing, and when the queue ends. Each write first reads the latest `savedArticles`, merges by `id` (keeping the in-memory updated objects and taking in posts added or removed elsewhere), then writes, so posts saved on Threads during the queue are not overwritten. Closing the page mid-run loses at most the last 19 unsaved updates.
+- Supports pause, resume, and cancellation signals. Results are persisted every 20 posts (`UPDATE_PERSIST_BATCH_SIZE`), when pausing, and when the queue ends. Each write (`mergeArticleUpdates`) reads only the keys of the pending posts, copies the update fields (`timestamp`, `timestampTitle`, `content`, `tags`, expired status fields, `timestampUpdatedAt`) onto the stored records, and skips keys that no longer exist, so posts deleted during the queue are not resurrected and posts saved on Threads meanwhile are untouched. Closing the page mid-run loses at most the last 19 unsaved updates.
 - During the run only the updated card and the statistics are re-rendered; filters, clouds, and the full list refresh once the queue ends.
 - Automatically marks posts as expired on redirect, post-not-found (404/deleted), or platform fallback summary, and restores them to active once accessible again.
 
@@ -155,7 +158,8 @@ interface SavedArticle {
 - Search inputs use a 180ms debounce (`SEARCH_DEBOUNCE_MS`); clouds display the top 15 entries (`CLOUD_VISIBLE_LIMIT`) with an overflow note.
 - Lists render in batches: 60 cards at a time in the dashboard and 30 in the popup (`RENDER_BATCH_SIZE`). A "show more" button at the end loads the next batch when clicked or when an IntersectionObserver sees it near the viewport; clicking it moves focus to the first new card. Card actions are handled by delegated listeners on the list container, select-all and clear-selection update rendered cards in place, and dashboard cards use `content-visibility: auto`.
 - Search matches `content`, `author`, `tags`, and the path part of `postLink` (`/@author/post/CODE`, without the domain), so a handle or post code finds the post. Each post's lowercased search text is cached in a WeakMap and invalidated when the update queue changes that post. Sorting precomputes one key per post and compares author names with a shared `Intl.Collator('zh-TW')`.
-- Both the popup and the dashboard listen to `chrome.storage.onChanged` and merge external changes by `id`. Events caused by their own writes are recognized by the written id list and ignored.
+- Both the popup and the dashboard listen to `chrome.storage.onChanged`. Events carry only the changed `post:` keys; `applyStoredArticleChanges` removes deleted records, adds or replaces changed ones, and ignores changes whose value already matches the in-memory record (such as echoes of the page's own writes).
+- Saving on Threads writes a single key (about 3 KB) instead of rewriting the whole collection; deleting removes the matching keys. Opening the popup or dashboard still reads every post.
 - Contrast is raised to 4.5:1, undersized hit targets are enlarged to at least 24x24px, font sizes are floored at 12px, and all three stylesheets honor `prefers-reduced-motion: reduce`.
 
 ## Export & Import Specifications
