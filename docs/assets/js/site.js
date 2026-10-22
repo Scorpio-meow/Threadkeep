@@ -77,13 +77,20 @@
   function setupNavState() {
     const nav = document.querySelector('[data-nav]');
     if (!nav) return;
-    const sentinel = document.createElement('div');
-    sentinel.className = 'nav-sentinel';
-    sentinel.setAttribute('aria-hidden', 'true');
-    document.body.prepend(sentinel);
-    new IntersectionObserver(([entry]) => {
-      nav.dataset.scrolled = String(!entry.isIntersecting);
-    }).observe(sentinel);
+    let frame = 0;
+    const sync = () => {
+      frame = 0;
+      const below = document.elementFromPoint(1, nav.getBoundingClientRect().bottom + 1);
+      const chapter = below?.closest('[data-chapter]')?.dataset.chapter;
+      if (chapter) nav.dataset.chapter = chapter;
+      else delete nav.dataset.chapter;
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(sync);
+    };
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    sync();
   }
   function setupReveal() {
     const observer = new IntersectionObserver(
@@ -101,7 +108,13 @@
   function setupTabs(container) {
     const tablist = container.querySelector('[role="tablist"]');
     const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+    const vertical = tablist.getAttribute('aria-orientation') === 'vertical';
+    const canHover = window.matchMedia('(hover: hover) and (pointer: fine)');
     const select = (tab, moveFocus) => {
+      if (tab.getAttribute('aria-selected') === 'true') {
+        if (moveFocus) tab.focus();
+        return;
+      }
       tabs.forEach((candidate) => {
         const selected = candidate === tab;
         candidate.setAttribute('aria-selected', String(selected));
@@ -112,8 +125,15 @@
     };
     tabs.forEach((tab, index) => {
       tab.addEventListener('click', () => select(tab, false));
+      if ('tabsHover' in container.dataset) {
+        tab.addEventListener('pointerenter', () => {
+          if (canHover.matches) select(tab, false);
+        });
+      }
       tab.addEventListener('keydown', (event) => {
-        const targets = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tabs.length - 1 };
+        const next = vertical ? 'ArrowDown' : 'ArrowRight';
+        const previous = vertical ? 'ArrowUp' : 'ArrowLeft';
+        const targets = { [next]: index + 1, [previous]: index - 1, Home: 0, End: tabs.length - 1 };
         if (!(event.key in targets)) return;
         event.preventDefault();
         select(tabs[(targets[event.key] + tabs.length) % tabs.length], true);
