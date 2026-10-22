@@ -1,0 +1,63 @@
+name: 無障礙問題
+description: 無法用鍵盤或輔助技術操作、焦點遺失、對比不足、提示來不及閱讀等
+title: "[無障礙] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝你回報使用上的障礙。目前的支援範圍與已知限制請見 [ACCESSIBILITY.md](https://github.com/Scorpio-meow/Threads-embedded-code/blob/main/ACCESSIBILITY.md)，已列為已知限制的項目也歡迎補充你的使用情境。
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 受影響的畫面
+      options:
+        - Popup 彈出面板
+        - 控制面板（Dashboard）
+        - 即時預覽
+        - Threads 頁面上的通知
+        - GitHub Pages 介紹頁
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: barrier
+    attributes:
+      label: 遇到的障礙
+      description: 描述你想完成的事，以及卡在哪裡
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重現步驟
+      placeholder: |
+        1. 用 Tab 移到「批次刪除」
+        2. 按 Enter 開啟確認對話框
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: assistive-tech
+    attributes:
+      label: 使用的輔助技術
+      description: 例如螢幕閱讀器名稱與版本、只用鍵盤、螢幕放大、語音控制、高對比模式
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 擴充功能版本、瀏覽器與作業系統
+      placeholder: "2.2.0 / Chrome 130 / Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 你期望的行為

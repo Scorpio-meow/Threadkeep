@@ -1,0 +1,118 @@
+# 貢獻指南
+
+感謝你願意協助改進「Threads 程式碼儲存器」！這份文件說明如何回報問題、提出建議，以及送出 Pull Request 前需要知道的事。
+
+參與本專案即表示你同意遵守[貢獻者行為準則](./CODE_OF_CONDUCT.md)。
+
+## 目錄
+
+- [回報問題](#回報問題)
+- [提出功能建議](#提出功能建議)
+- [開發環境](#開發環境)
+- [架構規範](#架構規範)
+- [手動測試清單](#手動測試清單)
+- [文件同步](#文件同步)
+- [Commit 訊息](#commit-訊息)
+- [送出 Pull Request](#送出-pull-request)
+- [授權](#授權)
+
+## 回報問題
+
+請到 [Issues](https://github.com/Scorpio-meow/Threads-embedded-code/issues/new/choose) 選擇對應的範本：
+
+| 範本 | 適用情境 |
+| :--- | :--- |
+| 擷取結果不正確 | 沒有出現儲存提示、內文夾雜 UI 雜訊、換行被壓平、發文時間或作者抓錯、被誤判為失效貼文。通常是 Threads 改版造成。 |
+| 功能異常 | Popup、控制面板、即時預覽、更新佇列、匯入匯出等介面操作出錯。 |
+| 無障礙問題 | 無法用鍵盤或輔助技術操作、對比不足、焦點遺失等，詳見[無障礙聲明](./ACCESSIBILITY.md)。 |
+| 功能建議 | 新功能或既有功能的改善。 |
+
+回報前請注意：
+
+- **安全漏洞不要開公開 Issue**，請依[安全政策](./SECURITY.md)私下回報。
+- 先搜尋是否已有相同的 Issue，並確認使用的是 `main` 分支的最新版本（版本號見 `chrome://extensions/` 或 [manifest.json](./manifest.json)）。
+- 只附上**公開貼文**的網址。完整備份檔含有你收藏的所有貼文，請只貼出與問題相關的那一筆，並移除不想公開的內容。
+- 擷取問題請盡量附上 Threads 的介面語言與頁面類型（動態牆、貼文頁、個人檔案頁），過濾規則會因語言而不同。
+
+## 提出功能建議
+
+本專案刻意維持零依賴、零建置、資料只存在瀏覽器本機的設計。較大的功能（新增權限、新的對外連線、改變儲存格式）請先開 Issue 討論，確認方向後再動手，以免做了白工。
+
+## 開發環境
+
+不需要安裝 Node.js、套件或任何建置工具，只要一個支援 Manifest V3 的 Chromium 瀏覽器（Chrome、Edge、Brave 等，版本 88 以上）。
+
+1. Fork 並複製專案：
+   ```bash
+   git clone https://github.com/<你的帳號>/Threads-embedded-code.git
+   ```
+2. 開啟 `chrome://extensions/`（Edge 為 `edge://extensions/`），打開右上角的「開發人員模式」。
+3. 點「載入未封裝項目」，選擇專案根目錄（包含 `manifest.json` 的資料夾）。
+
+修改後要讓變更生效：
+
+| 修改的檔案 | 生效方式 |
+| :--- | :--- |
+| `manifest.json` | 在擴充功能頁按「重新載入」 |
+| `content.js`、`styles.css` | 在擴充功能頁按「重新載入」，**再重新整理 Threads 分頁**，否則舊的腳本仍在執行 |
+| `popup.*` | 關閉後重新開啟 Popup |
+| `dashboard.*` | 重新整理控制面板分頁 |
+
+偵錯時：Popup 可在面板上按右鍵選「檢查」開啟開發者工具；`content.js` 的訊息出現在 Threads 分頁的主控台；控制面板直接在該分頁按 `F12`。
+
+## 架構規範
+
+完整說明見 README 的[開發注意事項與架構規範](./README.md#開發注意事項與架構規範)，重點如下：
+
+- **零外部依賴**：不引入 npm 執行期套件、外部 CDN 腳本或框架。
+- **嚴格 CSP**：HTML 與注入腳本禁止行內樣式（`style="..."`）與行內事件（`onclick="..."`），事件一律用 `addEventListener` 綁定。
+- **不使用原生對話框**：`confirm()`、`alert()`、`prompt()` 一律改用頁內 Modal。Popup 失焦時原生對話框會連同 Popup 一起關閉並回傳預設值，容易誤觸破壞性操作。
+- **安全渲染**：貼文內文、作者、標籤等來自網頁的字串一律以 `textContent` 或 `escapeHtml` 輸出，連結與 iframe 來源經過 `sanitizeUrl`；`postMessage` 必須驗證來源網域。
+- **無障礙**：新 Modal 需有 `role="dialog"`、`aria-modal="true"`、焦點鎖定與焦點還原；可點擊元素用 `button`，點擊區域至少 24×24px；停用狀態用 `disabled` 屬性，不要只靠 `pointer-events: none`。
+- **權限最小化**：新增 `permissions` 或 `host_permissions` 前請先在 Issue 說明理由。
+
+修改 `content.js` 的清洗函式（`cleanExtractedPostContent`、`isLikelyThreadsFallbackDescription`）時另外注意：
+
+- `dashboard.js` 的 `extractPostInfoFromPage` 內有同名函式的副本。這個函式會透過 `chrome.scripting.executeScript` 注入背景分頁，必須自給自足，無法引用 `content.js`，因此過濾規則要兩邊一起改。
+- [GitHub Pages 介紹頁](https://scorpio-meow.github.io/Threads-embedded-code/)的互動示範會直接從 `main` 分支載入 `content.js` 並呼叫這兩個函式。重新命名或移除會讓示範失效，請一併修改 `docs/assets/js/cleaner-worker.js`。
+
+## 手動測試清單
+
+本專案目前沒有自動化測試，送出 PR 前請依改動範圍手動驗證：
+
+- **擷取**：在動態牆、貼文頁與個人檔案頁各點一次「取得內嵌程式碼」，確認出現儲存提示，內文保留換行且不含 UI 雜訊；`/post/` 與 `/t/` 兩種網址都要能存。
+- **Popup**：搜尋、6 種篩選、6 種排序、單篇刪除與復原、複製內嵌碼、匯入（選檔與貼上）、三種匯出。
+- **控制面板**：統計與標籤雲、作者雲篩選、批次勾選與半選狀態、批次刪除與復原、即時預覽（鍵盤 `ESC` 與左右方向鍵、載入逾時與重新載入）。
+- **更新貼文資料**：暫停、繼續、取消；勾選與未勾選時的更新範圍；失效貼文的標記與恢復。
+- **匯入匯出**：合併與完全覆寫（含二次確認），匯出的檔案能再次匯入。
+- **鍵盤與動態**：只用鍵盤完成上述操作，並在系統開啟「減少動態效果」時確認轉場動畫停用。
+
+## 文件同步
+
+- 新增或修改儲存欄位時，同步更新 README 的[資料模型與儲存 Schema](./README.md#資料模型與儲存-schema)、[llms.txt](./llms.txt)（英文）與匯入匯出模組。
+- 使用者看得到的行為改變，請同步更新 README 對應段落；若介紹頁（`docs/index.html`）有提到，也一併修改。
+- 過濾規則的數量（目前為 41 條）寫在 README 與 llms.txt 裡，增減規則時請一起更新。
+- 版本號與 Changelog 由維護者在發版時整理，PR 不需要修改 `manifest.json` 的 `version`，但請在 PR 說明中寫出這次變更對使用者的影響。
+
+## Commit 訊息
+
+沿用 [Conventional Commits](https://www.conventionalcommits.org/zh-hant/v1.0.0/) 格式，說明以繁體中文撰寫：
+
+```
+<type>(<scope>): <說明>
+```
+
+- 常用 type：`feat`（新功能）、`fix`（修正）、`refactor`（重構）、`docs`（文件）、`chore`（雜項）。
+- scope 可省略，常見的有 `extractor`、`dashboard`、`ui`、`css`、`security`、`filter`、`embed`。
+- 例：`fix(extractor): 修復貼文內含翻譯按鈕時無法正常提取內文的問題`
+
+## 送出 Pull Request
+
+1. 從 `main` 建立分支，一個 PR 只處理一件事。
+2. 依上方清單手動測試，並更新相關文件。
+3. 送出 PR 時填寫範本，介面變更請附上修改前後的截圖。
+4. 維護者審查後可能會請你調整，合併方式由維護者決定。
+
+## 授權
+
+送出貢獻即表示你同意該貢獻以本專案的 [MIT 授權條款](./LICENSE)釋出。

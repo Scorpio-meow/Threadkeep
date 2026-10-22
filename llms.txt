@@ -215,6 +215,7 @@ All three exports are selection-aware: when posts are checked only those are exp
 - Enable **Developer Mode** in the top right.
 - Click **Load unpacked** and select the project root directory.
 - Conventions: no inline styles or inline event handlers (strict CSP), no native browser dialogs, new modals must implement focus trapping and focus restoration, and any stored-field change must be mirrored in README.md, this file, and the export/import modules.
+- Community files (Traditional Chinese): [CONTRIBUTING.md](./CONTRIBUTING.md) (setup, manual test checklist, commit and PR flow), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md) (vulnerabilities go through GitHub private vulnerability reporting, not public issues), [ACCESSIBILITY.md](./ACCESSIBILITY.md) (WCAG 2.2 AA target and known limitations). Issue forms and the PR template live in `.github/`.
 
 ## License
 Licensed under the [MIT License](./LICENSE).

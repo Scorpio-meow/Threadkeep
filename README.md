@@ -251,6 +251,9 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 - **視覺與動態友善**：文字對比度提升至 4.5:1，偏小的點擊目標放大至 24×24px 以上，字級下限拉高到 12px；三份樣式表皆支援 `prefers-reduced-motion: reduce`，在系統要求減少動態時停用轉場動畫。
 - **輸入防抖**：兩個介面的搜尋框皆加入 180ms debounce，資料量大時輸入不再卡頓。
 
+> [!NOTE]
+> 無障礙目標、已知限制（例如復原提示的 8 秒時限）與障礙回報方式，請見 [ACCESSIBILITY.md](./ACCESSIBILITY.md)。
+
 ---
 
 ## 技術規格與技術棧
@@ -288,7 +291,12 @@ threads-embedded-code/
 ├── dashboard.js          # 儀表板控制邏輯 (統計雲、預覽控制器、循序佇列、批次處理、復原機制)
 ├── favicon.png           # 擴充功能 128x128 圖示資源
 ├── llms.txt              # AI 友善架構與 RAG 快速索引規範文件
-└── README.md             # 專案說明文件 (本檔案)
+├── README.md             # 專案說明文件 (本檔案)
+├── CONTRIBUTING.md       # 貢獻指南
+├── CODE_OF_CONDUCT.md    # 貢獻者行為準則
+├── SECURITY.md           # 安全政策與漏洞回報方式
+├── ACCESSIBILITY.md      # 無障礙聲明
+└── .github/              # Issue 範本 (ISSUE_TEMPLATE/) 與 Pull Request 範本
 ```
 
 ### 檔案職責對照表
@@ -830,6 +838,13 @@ const posts = [
 ## 開發與貢獻指南
 
 歡迎所有開發者協助改進本專案！如果您有任何建議或發現 Bug，請隨時提交 Issue 或 Pull Request。
+
+| 文件 | 內容 |
+| :--- | :--- |
+| [CONTRIBUTING.md](./CONTRIBUTING.md) | 回報問題、開發環境、手動測試清單、Commit 與 PR 流程 |
+| [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) | 社群行為準則與檢舉方式 |
+| [SECURITY.md](./SECURITY.md) | 支援版本、私密漏洞回報管道與回報範圍 |
+| [ACCESSIBILITY.md](./ACCESSIBILITY.md) | 無障礙目標、已知限制與障礙回報方式 |
 
 ### 開發與修改流程
 
