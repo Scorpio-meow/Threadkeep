@@ -7,7 +7,7 @@
 **[前往介紹頁](https://scorpio-meow.github.io/Threads-embedded-code/)**：功能導覽、互動清洗示範與安裝教學
 
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-D12F35?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threads-embedded-code/)
-[![Version](https://img.shields.io/badge/version-2.3.0-blue?style=for-the-badge)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-2.4.0-blue?style=for-the-badge)](./manifest.json)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
@@ -237,7 +237,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
   - `作者名稱: A-Z (author-asc)` / `作者名稱: Z-A (author-desc)`
 
 ### 8. 互動式標籤與作者統計雲
-- **即時頻次計算**：自動統計所有貼文中的 Top 15 常用標籤與 Top 15 熱門作者。
+- **即時頻次計算**：自動統計所有貼文中的 Top 15 常用標籤與 Top 15 熱門作者。標籤不分大小寫合併計數（`React`、`react` 算同一個），以最常見的寫法顯示，篩選選單與「標籤總數」也依同樣規則合併。
 - **點擊即時篩選**：點擊標籤雲或作者雲中的任一徽章，即可快速切換儀表板清單的篩選條件；再次點擊即可取消篩選。
 
 ### 9. 智慧容錯匯入與多格式匯出
@@ -246,18 +246,20 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 - **雙模式智慧匯入**：
   - **合併資料 (Merge)**：自動比對貼文網址（`postLink`），略過重複項目，僅將新貼文附加至清單尾端。
   - **完全覆寫 (Overwrite)**：清空現有資料庫，以匯入檔案內容完全取代；此模式必須再通過一次「確認完全覆寫」對話框才會執行。
-- **高容錯解析引擎**：依序採用 `JSON.parse`、`new Function` 動態語法樹求值與正規表達式抽取，完美相容標準 JSON、物件陣列與帶有 `const posts =` 宣告的 JS 檔案。
+- **兩階段解析**：先以 `JSON.parse` 解析 `const posts = [...]`，失敗時改用正規表達式抽出每段內嵌碼，相容三種匯出格式與標準 JSON 備份。
 
 ### 10. 無障礙設計與可復原操作
 - **完整 Modal 無障礙語意**：所有對話框均具備 `role="dialog"`、`aria-modal="true"` 與標題／描述關聯；開啟時自動聚焦、`Tab` 焦點鎖定於對話框內、`ESC` 可關閉，關閉後焦點自動回到觸發按鈕。
-- **可復原的刪除與清除**：單篇刪除、批次刪除與清除全部資料後，會顯示帶有「復原」按鈕的提示（預設 8 秒）；同一時間僅保留一則復原提示，避免舊快照回捲較新的變更。
-- **即時語音回饋**：Popup、Dashboard 的 Toast 容器與注入 Threads 頁面的通知皆為 live region（一般訊息 `role="status"`、錯誤訊息 `role="alert"`）；錯誤訊息停留時間也延長（面板 Toast 5 秒、Threads 頁面通知 6 秒，一般訊息為 2.5 秒）。
+- **可復原的刪除與清除**：單篇刪除、批次刪除與清除全部資料後，會顯示帶有「復原」按鈕的提示（預設 8 秒）；滑鼠移到提示上或鍵盤焦點停在「復原」按鈕時暫停倒數。同一時間僅保留一則復原提示，避免舊快照回捲較新的變更。
+- **即時語音回饋**：Popup、Dashboard 的 Toast 容器與注入 Threads 頁面的通知皆為 live region（一般訊息 `role="status"`、錯誤訊息 `role="alert"`）。一般訊息至少顯示 4 秒、錯誤至少 6 秒，較長的訊息依字數延長（每字約 0.12 秒），滑鼠移到提示上時暫停倒數。
+- **清楚的焦點外框**：鍵盤焦點以 2px 實線外框標示（淺色 `#2563eb`、深色 `#60a5fa`），與周圍背景的對比至少 4.6:1。
+- **深色與高對比模式**：控制面板右上角的「外觀」選單可選跟隨系統、淺色或深色，設定存在 `chrome.storage.local`，Popup 與 Threads 頁面上的通知一併套用；顏色集中定義在 `:root` 的 CSS 變數；Windows 高對比模式（`forced-colors`）下，焦點外框、勾選框、選取狀態與進度條改用系統顏色標示。
 - **可操作的標籤與作者徽章**：統計雲徽章由 `span` 改為 `button` 並標註 `aria-pressed`，可用鍵盤聚焦並切換篩選狀態。
 - **視覺與動態友善**：文字對比度提升至 4.5:1，偏小的點擊目標放大至 24×24px 以上，字級下限拉高到 12px；三份樣式表皆支援 `prefers-reduced-motion: reduce`，在系統要求減少動態時停用轉場動畫。
 - **輸入防抖**：兩個介面的搜尋框皆加入 180ms debounce，資料量大時輸入不再卡頓。
 
 > [!NOTE]
-> 無障礙目標、已知限制（例如復原提示的 8 秒時限）與障礙回報方式，請見 [ACCESSIBILITY.md](./ACCESSIBILITY.md)。
+> 無障礙目標、已知限制（例如即時預覽的卡片由 Meta 決定）與障礙回報方式，請見 [ACCESSIBILITY.md](./ACCESSIBILITY.md)。
 
 ---
 
@@ -286,7 +288,8 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 ```
 threads-embedded-code/
 ├── manifest.json         # 擴充功能設定檔 (Manifest V3 權限與腳本規則)
-├── article-store.js      # 共用儲存層 (每篇一個 key、舊資料搬移、跨介面同步)
+├── article-store.js      # 共用儲存層 (每篇一個 key、舊資料搬移、跨介面同步、標籤合併)
+├── theme.js              # 外觀設定 (跟隨系統／淺色／深色，Popup 與控制面板共用)
 ├── content.js            # Content Script (DOM 監聽、對話框攔截、文本清洗、資料提取)
 ├── styles.css            # 注入至 Threads 網頁的通知提示樣式
 ├── popup.html            # 瀏覽器工具列彈出視窗 HTML
@@ -310,9 +313,10 @@ threads-embedded-code/
 | 檔案路徑 | 模組層級 | 主要職責與實作內容 |
 | :--- | :--- | :--- |
 | `manifest.json` | 設定層 | 聲明 Manifest V3 規格、儲存與分頁權限、主機比對規則與 CSP 配置。 |
-| `article-store.js` | 儲存層 | 由 content script、Popup 與 Dashboard 共用：決定每篇貼文的儲存 key、搬移舊版 `savedArticles` 陣列、逐篇讀寫與刪除、合併批次更新欄位，以及把 `chrome.storage.onChanged` 的逐篇變動套用到清單。 |
+| `article-store.js` | 儲存層 | 由 content script、Popup 與 Dashboard 共用：決定每篇貼文的儲存 key、搬移舊版 `savedArticles` 陣列、逐篇讀寫與刪除、合併批次更新欄位、把 `chrome.storage.onChanged` 的逐篇變動套用到清單，以及不分大小寫合併標籤統計（`getTagGroups`）。 |
+| `theme.js` | 外觀層 | 由 Popup 與控制面板在 `<head>` 載入：先以 `localStorage` 的快取立即套用 `data-theme`，避免載入時閃爍，再讀取 `chrome.storage.local` 的 `themePreference` 並同步各頁面；控制面板的「外觀」選單也由它處理。 |
 | `content.js` | 注入腳本層 | 負責監聽 Threads DOM 變化、攔截內嵌對話框、頂層排版提取與正規表達式文本清洗。 |
-| `styles.css` | 注入樣式層 | 定義顯示於 Threads 頁面之儲存成功/失敗浮動通知外觀、進場動畫與 `prefers-reduced-motion` 降級。 |
+| `styles.css` | 注入樣式層 | 定義顯示於 Threads 頁面之儲存成功/失敗浮動通知外觀、進場動畫、`prefers-reduced-motion` 降級，以及深色與高對比模式樣式。 |
 | `popup.html` / `popup.js` | 快速檢視層 | 提供 480px 寬度的工具列快速面板，支援即時關鍵字查詢、6 種分類、6 種排序、單篇維護、頁內確認／匯入 Modal 與基本匯出。 |
 | `dashboard.html` / `dashboard.js` | 完整管理層 | 全螢幕資料庫中心，提供 Live Preview 即時預覽、批次管理、標籤/作者統計雲、背景更新佇列與可復原的刪除操作。 |
 | `llms.txt` | 規範說明層 | 提供 AI 代理與 RAG 檢索系統快速索引之結構化摘要說明文件。 |
@@ -478,10 +482,10 @@ if (/threads\.com/i.test(value)) score += 100;
 2. **內文 Hashtag**：以 `/#([a-zA-Z0-9_\u4e00-\u9fa5]+)/g` 掃出內文中的中英文標籤。
 3. **技術關鍵字映射**：比對 JavaScript、Python、Java、C++、C#、HTML、CSS、SQL、TypeScript、React、Vue、Angular 共 12 組關鍵字（不分大小寫），命中即補上對應標籤。
 
-最後以 `String.prototype.normalize('NFC')` 統一 Unicode 表示法後透過 `Set` 去重，避免同一個中文標籤因組合字元差異而重複計數。
+最後以 `String.prototype.normalize('NFC')` 統一 Unicode 表示法，再不分大小寫去重並保留第一次出現的寫法，避免同一個中文標籤因組合字元差異而重複計數，也避免內文的 `#javascript` 和關鍵字比對的 `JavaScript` 同時出現。
 
 > [!NOTE]
-> 背景更新佇列注入的 `extractPostInfoFromPage` 內含同一套標籤邏輯，因此每次執行「更新貼文資料」也會一併刷新標籤清單。
+> 背景更新佇列注入的 `extractPostInfoFromPage` 不另外保留擷取邏輯，而是直接呼叫 Threads 頁面上 `content.js` 的 `findPostElementFromPostLink`、`extractPostContent` 與 `extractTags`，因此「更新貼文資料」抓到的內文與標籤和存檔時一致。
 
 ### 4. 44 條 UI 雜訊與時間過濾鏈
 
@@ -771,20 +775,17 @@ const posts = [
 
 ### 智慧匯入解析機制
 
-匯入模組具備極高的容錯韌性，採三階段解析管線：
+匯入模組採兩階段解析管線：
 
 ```
 [選擇檔案 (.js / .json)]   或   [Popup 直接貼上匯出檔內容]
            │                              │
            └──────────────┬───────────────┘
                           ▼
-              [階段一] JSON.parse 直接解析
-                          │ (失敗)
+      [階段一] JSON.parse 解析 const posts = [...] 陣列
+                          │ (失敗，例如單引號字串或未加引號的鍵)
                           ▼
-   [階段二] new Function('return ' + arrayStr)() 語法樹動態求值
-                          │ (失敗)
-                          ▼
-     [階段三] 正規表達式抽取器 (Token Pattern Extraction)
+     [階段二] 正規表達式抽取器 (Token Pattern Extraction)
                           │
                           ▼
         [匯入模式選擇 Modal (合併資料 / 完全覆寫)]
@@ -794,10 +795,10 @@ const posts = [
 ```
 
 > [!NOTE]
-> `.json` 檔會直接以 `JSON.parse` 解析（支援純陣列或 `{ "savedArticles": [...] }` 包裝）；`.js` 檔與 Popup 貼上的文字則走上述三階段管線。
+> `.json` 檔會直接以 `JSON.parse` 解析（支援純陣列或 `{ "savedArticles": [...] }` 包裝）；`.js` 檔與 Popup 貼上的文字則走上述兩階段管線。三種匯出格式中，「精選資料」與「完整備份」是標準 JSON，會在階段一解析；「僅嵌入碼」是單引號字串陣列，由階段二抽出每段帶有 `data-text-post-permalink` 的內嵌碼。擴充功能頁面的 CSP 禁止 `eval` 與 `new Function`，因此不以動態求值解析 JavaScript 物件寫法。
 
 > [!IMPORTANT]
-> - **合併資料 (Merge)**：以 `postLink` 進行貼文去重。若該貼文已存在於本機儲存則略過，僅將新貼文附加至清單尾端，現有資料完全保留。
+> - **合併資料 (Merge)**：以貼文代碼（儲存 key）判斷重複，threads.com 與 threads.net 的同一篇視為同一筆。已存在的貼文會略過，現有資料完全保留。
 > - **完全覆寫 (Overwrite)**：清空現有的本機資料，完全以匯入檔案中的內容取代。此模式必須再通過一次「確認完全覆寫」對話框；直接關閉或按 `ESC` 一律視為取消，不會誤觸覆寫。
 
 ---
@@ -824,7 +825,7 @@ const posts = [
 | **多維度分類與排序** | 透過頂部下拉選單切換 6 種分類篩選（如無內文、失效貼文）與 6 種排序規則。 |
 | **背景同步更新** | 點擊側邊欄「更新貼文資料」可更新目前篩選結果；若已勾選貼文則改用批次工具列的「更新貼文資料」，僅更新勾選項目。執行中可隨時「暫停/繼續」或「取消」。 |
 | **自選範圍匯出** | 先勾選欲匯出的貼文，再點擊任一匯出按鈕，即只匯出勾選項目；未勾選時匯出目前篩選結果。 |
-| **復原誤刪** | 單篇刪除、批次刪除與清除全部後，畫面下方中央的提示會出現「復原」按鈕，預設 8 秒內點擊即可還原。 |
+| **復原誤刪** | 單篇刪除、批次刪除與清除全部後，畫面下方中央的提示會出現「復原」按鈕，預設 8 秒內點擊即可還原；滑鼠移到提示上或焦點停在按鈕上時暫停倒數。 |
 | **匯入資料** | Popup 點「匯入」後可選擇讀取檔案或直接貼上內容；Dashboard 點「匯入資料檔案」選擇備份檔，接著選擇合併或覆寫。 |
 
 ---
@@ -836,6 +837,7 @@ const posts = [
 > - 請確認瀏覽器是否已登入 Threads 帳號。未登入狀態下，Threads 官方對話框可能無法正確產生內嵌代碼。
 > - 確認當前頁面網址是否為標準的 `threads.com` 或 `www.threads.com` 網域。
 > - 若瀏覽器開發者主控台出現 `Extension context invalidated` 警告，此為 Chrome 重新載入擴充功能後的常見安全機制，只需重新整理對應的 Threads 網頁即可恢復運作。
+> - 若 Threads 顯示「發生錯誤。這可能是技術錯誤所導致，我們正努力修復。」，代表 Threads 這次沒有產生內嵌程式碼，擴充功能會提示「Threads 回報錯誤，請稍後再試」。這是 Threads 端的暫時錯誤，稍等一下再點一次「取得內嵌程式碼」即可。
 
 > [!NOTE]
 > **問題：為什麼有些貼文在背景更新後被標記為「失效貼文」？**
@@ -855,7 +857,7 @@ const posts = [
 
 > [!TIP]
 > **問題：不小心刪錯貼文或按到「清除全部資料」怎麼辦？**
-> - 刪除、批次刪除與清除全部皆為可復原操作，畫面下方中央的提示列會顯示「復原」按鈕，預設 8 秒內點擊即可完整還原。
+> - 刪除、批次刪除與清除全部皆為可復原操作，畫面下方中央的提示列會顯示「復原」按鈕，預設 8 秒內點擊即可完整還原；滑鼠移到提示上或焦點停在按鈕上時倒數會暫停。
 > - 提示消失後即無法復原，因此執行清除前仍建議先「匯出完整資料」備份。
 > - 匯入時若選擇「完全覆寫」，必須再通過一次確認對話框；關閉視窗或按 `ESC` 一律視為取消。
 
@@ -897,6 +899,29 @@ cd threads-embedded-code
 ## 版本更新紀錄 (Changelog)
 
 本專案嚴格遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 格式規範。
+
+### [2.4.0] - 2026-10-23
+
+#### 新增
+- 深色模式：Popup、控制面板與 Threads 頁面的通知預設跟隨作業系統的外觀設定，也可在控制面板右上角的「外觀」選單固定為淺色或深色（新增 `theme.js`，設定存為 `themePreference`）。顏色整理成 `:root` 的 CSS 變數，淺色模式的外觀維持不變，深色配色的文字對比至少 4.5:1。
+- Windows 高對比模式（`forced-colors`）樣式：勾選框、選取中的卡片、目前的篩選徽章與預覽分頁、進度條、停用的按鈕，以及提示與對話框邊框改用系統顏色標示。
+
+#### 改善
+- 提示訊息依字數延長顯示時間：一般訊息至少 4 秒、錯誤至少 6 秒，每字約 0.12 秒；原本一般訊息只有 2.5 秒。
+- 復原提示與一般提示在滑鼠移入時暫停倒數，復原提示在鍵盤焦點停在「復原」按鈕時也會暫停，離開後才繼續。
+- 標籤雲、標籤篩選選單與「標籤總數」改為不分大小寫合併（`React`、`react` 算同一個），以最常見的寫法顯示；點卡片上任一種寫法的標籤，都會選中合併後的篩選項目。
+- 收斂主控台訊息：在 Threads 存檔時只印一行「已儲存／已更新」，不再每次點擊、存檔印出十幾行；警告與錯誤只在真的出問題時出現。
+
+#### 修正
+- 修復鍵盤焦點不易辨識的問題：焦點原本以 `outline: none` 搭配淡藍色光暈呈現，與背景的對比只有約 1.3:1，Windows 高對比模式移除陰影後更完全看不到。改為 2px 實線外框（淺色 `#2563eb`、深色 `#60a5fa`），與背景的對比至少 4.6:1，高對比模式下由系統顏色繪製。
+- 修復「更新貼文資料」與存檔時擷取結果不一致的問題：背景更新原本在 `dashboard.js` 保留一份較舊的擷取邏輯，缺少回覆邊界過濾，會把回覆文字併入內文，純圖片貼文也會存成「Photo by…」說明；改為直接呼叫 Threads 頁面上 `content.js` 的擷取函式，`dashboard.js` 少了約 220 行重複程式。
+- 修復背景更新遇到只有平台提示文字（例如「加入 Threads 即可分享意見」）的頁面時一直等待、直到 60 秒上限才記為失敗的問題；改為依原本的設計標記為 `fallback-summary` 失效。
+- 修復同一篇貼文同時出現大小寫不同的重複標籤（例如 `javascript` 與 `JavaScript`）：標籤改為不分大小寫去重，保留第一次出現的寫法。
+- 修復點擊「取得內嵌程式碼」後固定等 1 秒就讀取對話框，Threads 載入較慢時會先誤報「找不到可儲存的內嵌程式碼」的問題；改為每 250ms 檢查一次、最多等 8 秒，內嵌碼一出現就儲存，逾時才報錯，使用者自行關閉對話框時不報錯。
+- 修復 Threads 端出錯（顯示「發生錯誤。這可能是技術錯誤所導致，我們正努力修復。」）時，擴充功能誤報「找不到內嵌程式碼對話框」的問題；等待期間偵測到 Threads 的錯誤訊息就立即停止，改為提示「Threads 回報錯誤，請稍後再試」。偵測會略過貼文內容與擴充功能自己的通知，避免貼文裡剛好寫到相同字眼時誤判。
+
+#### 移除
+- 移除匯入解析中的 `new Function` 動態求值備援。擴充功能頁面的 CSP 禁止動態求值，這段程式從未成功執行；匯入改為 `JSON.parse` 加正規表達式抽取兩階段，三種匯出格式都不受影響。
 
 ### [2.3.0] - 2026-10-23
 

@@ -7,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Threads 程式碼儲存器 - 控制面板</title>
   <link rel="stylesheet" href="dashboard.css">
+  <script src="theme.js"></script>
 </head>
 
 <body>
@@ -28,6 +29,14 @@
         <span class="stat-item is-hidden" id="updatingStatItem">更新中：<strong id="updatingProgressCount"
             class="warning-text">0/0</strong></span>
       </div>
+      <label class="theme-picker" for="themeSelect">
+        <span class="theme-picker-label">外觀</span>
+        <select id="themeSelect" class="theme-select">
+          <option value="system">跟隨系統</option>
+          <option value="light">淺色</option>
+          <option value="dark">深色</option>
+        </select>
+      </label>
       <a href="https://www.threads.com/" target="_blank" rel="noopener noreferrer" class="threads-link">
         前往 Threads
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"

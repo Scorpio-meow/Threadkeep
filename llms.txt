@@ -3,19 +3,20 @@
 
 ## Core Metadata
 - Project Name: Threads Code Saver
-- Current Version: 2.3.0
+- Current Version: 2.4.0
 - Specification: Google Chrome Extensions Manifest V3
 - Tech Stack: Pure Native JavaScript (ES6+), HTML5, CSS3 Custom Properties (Zero external dependencies, zero compilation/build step)
 - Data Persistence: Browser local storage (chrome.storage.local with the `unlimitedStorage` permission, so the default 10MB quota does not apply; privacy-first). Saved data never leaves the browser; network access is limited to Threads domains (live preview and background updates) plus the Google Fonts stylesheets imported by popup.css and dashboard.css.
-- Accessibility: In-page modals only (no native confirm/alert/prompt), focus trapping, live regions, 4.5:1 contrast, undersized hit targets enlarged to at least 24x24px, 12px minimum font size, prefers-reduced-motion support
+- Accessibility: In-page modals only (no native confirm/alert/prompt), focus trapping, live regions, 4.5:1 contrast, undersized hit targets enlarged to at least 24x24px, 12px minimum font size, prefers-reduced-motion support, system or manually chosen light/dark themes, forced-colors (Windows High Contrast) styles, pausable toasts
 - License: MIT ([LICENSE](./LICENSE))
 - Source Repository: https://github.com/Scorpio-meow/threads-embedded-code
 - Companion Showcase Repository: https://github.com/Scorpio-meow/Threads-Featured-Posts (Consumes exported featured post data as its primary dataset)
 
 ## Core Files
 - manifest.json: Extension configuration manifest declaring Manifest V3 specs, permissions (storage, unlimitedStorage, tabs, scripting), host matches for threads.com and threads.net, `all_frames: true` content script injection (`article-store.js` then `content.js`), and strict CSP headers.
+- theme.js: Theme preference script loaded in the `<head>` of the popup and dashboard; applies the cached `data-theme` immediately, syncs with `chrome.storage.local`, and wires the dashboard's "外觀" select.
 - article-store.js: Shared storage layer loaded by the content script, the popup, and the dashboard. It derives each post's storage key, migrates the legacy `savedArticles` array, reads, writes, and removes individual records, merges batch-update fields into stored records, and applies per-key `chrome.storage.onChanged` events to an in-memory list.
-- content.js: Primary Content Script. On Threads pages it listens for clicks on the "Get embed code" item through a single delegated capture-phase listener, checks for the official embed dialog at most once per animation frame after DOM mutations (no page-wide button scans or periodic polling), intercepts the dialog, scores embed candidates, extracts top-level text containers, filters image-only descriptions, and strips UI/timestamp noise. Inside `/embed` iframes it switches to `handleEmbedFrameResize()` and reports the measured `.Embed` height to the parent window.
+- content.js: Primary Content Script. On Threads pages it listens for clicks on the "Get embed code" item through a single delegated capture-phase listener, checks for the official embed dialog at most once per animation frame after DOM mutations (no page-wide button scans or periodic polling), intercepts the dialog, and after a click waits up to 8 seconds (`EMBED_DIALOG_TIMEOUT_MS`, checking every 250ms) for the embed code before reporting a missing dialog or empty dialog; if Threads shows its own error message ("發生錯誤…技術錯誤" / "Something went wrong", outside post containers) during that wait, it stops and reports immediately that Threads failed and the post was not saved. It also scores embed candidates, extracts top-level text containers, filters image-only descriptions, and strips UI/timestamp noise. Inside `/embed` iframes it switches to `handleEmbedFrameResize()` and reports the measured `.Embed` height to the parent window.
 - styles.css: Injected notification styles for Threads web pages, including live-region toast styling and prefers-reduced-motion fallbacks.
 - popup.html: 480px width browser toolbar popup markup, including the confirm, import-source, import-paste, and import-mode modals.
 - popup.css: Toolbar popup stylesheet featuring dark theme tokens, responsive card lists, and reduced-motion support.
@@ -111,8 +112,8 @@ interface SavedArticle {
 
 ### 3. Tag Extraction & Technology Keyword Mapping
 - `extractTags` merges three sources: official hashtag anchors (`a[href*="serp_type=tags"]`, `a[href*="tag_id="]`, reading the `q` query parameter first and falling back to link text), inline hashtags matched by `/#([a-zA-Z0-9_\u4e00-\u9fa5]+)/g`, and a 12-entry technology keyword map (JavaScript, Python, Java, C++, C#, HTML, CSS, SQL, TypeScript, React, Vue, Angular).
-- All tags are normalized with `String.prototype.normalize('NFC')` and deduplicated through a `Set`.
-- The injected `extractPostInfoFromPage` used by the background update queue runs the same logic, so every update also refreshes the tag list.
+- All tags are normalized with `String.prototype.normalize('NFC')` and deduplicated case-insensitively, keeping the first spelling (so an inline `#javascript` and the `JavaScript` keyword do not both appear).
+- The injected `extractPostInfoFromPage` used by the background update queue keeps no copy of the extraction logic: it calls `findPostElementFromPostLink`, `extractPostContent`, and `extractTags` from the `content.js` instance already running on the Threads page (same isolated world), waiting until that content script is available. Updated content and tags therefore match what saving produces. It still handles not-found detection, datetime lookup (`time[datetime]`, `article:published_time`, JSON-LD), and marks a post `fallback-summary` expired when the post has no datetime or content and `og:description` is a platform placeholder.
 
 ### 4. 44-Rule Noise & Timestamp Filtering Pipeline
 - `cleanExtractedPostContent` normalizes whitespace, strips carousel counters (e.g., 1/5), translation buttons, and "view original" labels, then collapses redundant blank lines.
@@ -150,17 +151,19 @@ interface SavedArticle {
 
 ### 8. Accessibility & Recoverable Operations
 - Native `confirm()`, `alert()`, and `prompt()` are never used. Every dialog is an in-page modal with `role="dialog"`, `aria-modal="true"`, labelled title/description, initial focus, Tab focus trapping, ESC dismissal, and focus restoration to the triggering control. This matters most in the MV3 popup, where a native dialog is dismissed together with the popup on blur and returns its default value.
-- Destructive actions are recoverable: single delete, batch delete, and clear-all show an undo toast (8 seconds by default). Only one undo toast exists at a time, so an older snapshot can never roll back newer changes.
+- Destructive actions are recoverable: single delete, batch delete, and clear-all show an undo toast (8 seconds by default, `UNDO_TOAST_DURATION_MS`). The countdown pauses while the pointer is over the toast or keyboard focus is on its undo button. Only one undo toast exists at a time, so an older snapshot can never roll back newer changes.
 - Overwrite imports require a second confirmation modal; dismissing it or pressing ESC always cancels.
 - Batch actions use the `disabled` attribute rather than `pointer-events: none`, so keyboard activation is blocked as well.
-- Toast containers and injected Threads notifications are live regions (`role="status"` / `aria-live="polite"`, escalating to `role="alert"` / `assertive` for errors). Error messages also stay visible longer: 5 seconds for panel toasts and 6 seconds for injected Threads notifications, versus 2.5 seconds for regular messages.
+- Toast containers and injected Threads notifications are live regions (`role="status"` / `aria-live="polite"`, escalating to `role="alert"` / `assertive` for errors). Regular messages stay at least 4 seconds and errors at least 6 seconds; longer messages get about 120ms per character (`TOAST_DURATION_MS`, `TOAST_ERROR_DURATION_MS`, `TOAST_MS_PER_CHAR`, and the `NOTIFICATION_*` equivalents in content.js). Hovering a toast pauses its countdown.
 - Tag and author cloud badges are `button` elements with `aria-pressed` reflecting the active filter.
-- Search inputs use a 180ms debounce (`SEARCH_DEBOUNCE_MS`); clouds display the top 15 entries (`CLOUD_VISIBLE_LIMIT`) with an overflow note.
+- Search inputs use a 180ms debounce (`SEARCH_DEBOUNCE_MS`); clouds display the top 15 entries (`CLOUD_VISIBLE_LIMIT`) with an overflow note. Tags are grouped case-insensitively by `getTagGroups` (article-store.js): each post counts once per group, and the group is labeled with its most common spelling; the tag cloud, the tag filter options, and the unique-tag statistic all use these groups, and filter selection matches case-insensitively.
+- Console output is kept short: saving logs one `console.info` line (`已儲存` / `已更新` plus the storage key); warnings and errors are logged only for real failures.
 - Lists render in batches: 60 cards at a time in the dashboard and 30 in the popup (`RENDER_BATCH_SIZE`). A "show more" button at the end loads the next batch when clicked or when an IntersectionObserver sees it near the viewport; clicking it moves focus to the first new card. Card actions are handled by delegated listeners on the list container, select-all and clear-selection update rendered cards in place, and dashboard cards use `content-visibility: auto`.
 - Search matches `content`, `author`, `tags`, and the path part of `postLink` (`/@author/post/CODE`, without the domain), so a handle or post code finds the post. Each post's lowercased search text is cached in a WeakMap and invalidated when the update queue changes that post. Sorting precomputes one key per post and compares author names with a shared `Intl.Collator('zh-TW')`.
 - Both the popup and the dashboard listen to `chrome.storage.onChanged`. Events carry only the changed `post:` keys; `applyStoredArticleChanges` removes deleted records, adds or replaces changed ones, and ignores changes whose value already matches the in-memory record (such as echoes of the page's own writes).
 - Saving on Threads writes a single key (about 3 KB) instead of rewriting the whole collection; deleting removes the matching keys. Opening the popup or dashboard still reads every post.
 - Contrast is raised to 4.5:1, undersized hit targets are enlarged to at least 24x24px, font sizes are floored at 12px, and all three stylesheets honor `prefers-reduced-motion: reduce`.
+- Theme: the dashboard's "外觀" select offers system, light, or dark. The choice is stored as `themePreference` in `chrome.storage.local` (absent means follow the system) and mirrored to `localStorage` so `theme.js`, loaded in each page's `<head>`, can set `data-theme` on `<html>` before first paint. The popup and the content script's Threads notifications (via a `data-theme` attribute on the notification) follow the same setting and react to `chrome.storage.onChanged`. Colors are CSS variables on `:root`; dark values apply under `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) }` and under `:root[data-theme="dark"]` (dark text pairs are at least 4.5:1). A `@media (forced-colors: active)` block marks checkboxes, selected cards, the active filter badge and preview tab, the progress bar, disabled buttons, and toast/dialog borders with system colors. Focus is shown with a 2px solid outline (`--focus-color`: `#2563eb` light, `#60a5fa` dark; danger options use the danger color) offset 1-2px from the element, at least 4.6:1 against surrounding backgrounds; Windows High Contrast mode repaints it in a system color. Tag and author clouds have 4px padding so focus outlines are not clipped by their scroll containers.
 
 ## Export & Import Specifications
 
@@ -208,7 +211,7 @@ All three exports are selection-aware: when posts are checked only those are exp
 
 ### Import Pipeline
 - Sources: a file picker (`.js` / `.json`) in both surfaces, plus a paste-text dialog in the popup.
-- `.json` files are parsed directly with `JSON.parse` (bare array or `{ "savedArticles": [...] }` wrapper). `.js` files and pasted text go through a three-stage resilient parser: `JSON.parse` -> dynamic evaluation via `new Function` -> token-based regular expression extraction.
+- `.json` files are parsed directly with `JSON.parse` (bare array or `{ "savedArticles": [...] }` wrapper). `.js` files and pasted text go through a two-stage parser: `JSON.parse` on the `const posts = [...]` array (the featured and full exports are JSON) -> regular expression extraction of single-quoted embed codes that contain `data-text-post-permalink` (the embed-only export). No `eval`/`new Function` fallback exists, because the extension page CSP blocks dynamic evaluation.
 - Modes: Merge (deduplicates on `postLink` and appends new posts to the end of the list) or Overwrite (replaces the entire database, gated behind a second confirmation modal).
 
 ## Security & Content Security Policy (CSP)

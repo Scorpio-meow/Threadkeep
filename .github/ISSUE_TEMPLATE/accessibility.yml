@@ -53,7 +53,7 @@ body:
     id: environment
     attributes:
       label: 擴充功能版本、瀏覽器與作業系統
-      placeholder: "2.3.0 / Chrome 130 / Windows 11"
+      placeholder: "2.4.0 / Chrome 130 / Windows 11"
     validations:
       required: true
 

@@ -1,6 +1,36 @@
 const ARTICLE_KEY_PREFIX = 'post:';
 const LEGACY_ARTICLES_KEY = 'savedArticles';
 const ARTICLE_UPDATE_FIELDS = ['timestamp', 'timestampTitle', 'content', 'tags', 'status', 'expiredAt', 'expiredReason', 'expiredCheckedAt', 'timestampUpdatedAt'];
+const THEME_PREFERENCE_KEY = 'themePreference';
+function getTagGroups(articles) {
+  const groups = new Map();
+  articles.forEach((article) => {
+    const seenKeys = new Set();
+    (article.tags || []).forEach((tag) => {
+      if (!tag) return;
+      const key = String(tag).toLowerCase();
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      if (!groups.has(key)) {
+        groups.set(key, { key, count: 0, spellings: new Map() });
+      }
+      const group = groups.get(key);
+      group.count++;
+      group.spellings.set(tag, (group.spellings.get(tag) || 0) + 1);
+    });
+  });
+  return [...groups.values()].map((group) => {
+    let label = '';
+    let labelCount = 0;
+    group.spellings.forEach((count, spelling) => {
+      if (count > labelCount) {
+        label = spelling;
+        labelCount = count;
+      }
+    });
+    return { key: group.key, label, count: group.count };
+  });
+}
 function getArticleStorageKey(article) {
   const cleanLink = typeof article.postLink === 'string' ? article.postLink.split(/[?#]/)[0].replace(/\/+$/, '') : '';
   const match = cleanLink.match(/(?:\/|^)(?:post|t)\/([a-zA-Z0-9_-]+)/i);

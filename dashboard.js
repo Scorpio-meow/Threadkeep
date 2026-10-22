@@ -10,6 +10,10 @@ let cancelUpdateRequested = false;
 let activeProgressToast = null;
 const CLOUD_VISIBLE_LIMIT = 15;
 const SEARCH_DEBOUNCE_MS = 180;
+const TOAST_DURATION_MS = 4000;
+const TOAST_ERROR_DURATION_MS = 6000;
+const TOAST_MS_PER_CHAR = 120;
+const UNDO_TOAST_DURATION_MS = 8000;
 const RENDER_BATCH_SIZE = 60;
 const LOAD_MORE_ROOT_MARGIN = '600px';
 const CARD_PREVIEW_LENGTH = 150;
@@ -27,6 +31,7 @@ let loadMoreObserver = null;
 const searchTextCache = new WeakMap();
 const sortCollator = new Intl.Collator('zh-TW');
 document.addEventListener('DOMContentLoaded', async () => {
+  void setupThemePreference(document.getElementById('themeSelect'));
   await loadArticles();
   setupEventListeners();
   setupModalListeners();
@@ -70,8 +75,7 @@ function calculateStatistics() {
   const expired = allArticles.filter(a => isExpiredArticle(a)).length;
   const authors = new Set(allArticles.map(a => a.author).filter(Boolean));
   const uniqueAuthors = authors.size;
-  const tags = new Set(allArticles.flatMap(a => a.tags || []).filter(Boolean));
-  const uniqueTags = tags.size;
+  const uniqueTags = getTagGroups(allArticles).length;
   document.getElementById('totalSavedCount').textContent = total;
   document.getElementById('totalExpiredCount').textContent = expired;
   document.getElementById('uniqueAuthorsCount').textContent = uniqueAuthors;
@@ -86,11 +90,7 @@ function renderTagsCloud() {
   const cloudContainer = document.getElementById('tagsCloud');
   if (!cloudContainer) return;
   cloudContainer.innerHTML = '';
-  const tagCounts = {};
-  allArticles.flatMap(a => a.tags || []).filter(Boolean).forEach(tag => {
-    tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-  });
-  const allSortedTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+  const allSortedTags = getTagGroups(allArticles).sort((a, b) => b.count - a.count);
   const sortedTags = allSortedTags.slice(0, CLOUD_VISIBLE_LIMIT);
   if (sortedTags.length === 0) {
     const emptyEl = document.createElement('span');
@@ -99,8 +99,8 @@ function renderTagsCloud() {
     cloudContainer.appendChild(emptyEl);
     return;
   }
-  sortedTags.forEach(([tag, count]) => {
-    const isActive = currentFilter === 'tag' && currentFilterValue === tag;
+  sortedTags.forEach(({ key, label, count }) => {
+    const isActive = currentFilter === 'tag' && currentFilterValue.toLowerCase() === key;
     const badge = document.createElement('button');
     badge.type = 'button';
     badge.className = 'tag-badge';
@@ -108,20 +108,18 @@ function renderTagsCloud() {
     if (isActive) {
       badge.classList.add('active');
     }
-    badge.textContent = `#${tag} (${count})`;
+    badge.textContent = `#${label} (${count})`;
     badge.addEventListener('click', () => {
-      if (currentFilter === 'tag' && currentFilterValue === tag) {
+      if (currentFilter === 'tag' && currentFilterValue.toLowerCase() === key) {
         currentFilter = 'all';
         currentFilterValue = '';
         document.getElementById('filterSelect').value = 'all';
       } else {
         currentFilter = 'tag';
-        currentFilterValue = tag;
+        currentFilterValue = label;
         document.getElementById('filterSelect').value = 'tag';
       }
       updateFilterValueOptions();
-      const filterValSelect = document.getElementById('filterValueSelect');
-      if (filterValSelect) filterValSelect.value = currentFilterValue;
       applyFilters();
     });
     cloudContainer.appendChild(badge);
@@ -419,7 +417,7 @@ function updateFilterValueOptions() {
       values.sort((a, b) => a.localeCompare(b, 'zh-TW'));
       break;
     case 'tag':
-      values = [...new Set(allArticles.flatMap(a => a.tags || []).filter(Boolean))];
+      values = getTagGroups(allArticles).map(group => group.label);
       values.sort((a, b) => a.localeCompare(b, 'zh-TW'));
       break;
     default:
@@ -432,7 +430,7 @@ function updateFilterValueOptions() {
       const opt = document.createElement('option');
       opt.value = val;
       opt.textContent = val;
-      if (val === currentFilterValue) {
+      if (val.toLowerCase() === currentFilterValue.toLowerCase()) {
         opt.selected = true;
       }
       select.appendChild(opt);
@@ -740,8 +738,6 @@ function handleArticleListClick(e) {
       currentFilterValue = tag;
       document.getElementById('filterSelect').value = 'tag';
       updateFilterValueOptions();
-      const filterValSelect = document.getElementById('filterValueSelect');
-      if (filterValSelect) filterValSelect.value = tag;
       applyFilters();
       break;
     }
@@ -819,6 +815,48 @@ async function copyTextToClipboard(text, successMessage) {
     showToast('複製失敗，瀏覽器權限受限', { type: 'error' });
   }
 }
+function getToastDuration(message, isError) {
+  const baseDuration = isError ? TOAST_ERROR_DURATION_MS : TOAST_DURATION_MS;
+  return Math.max(baseDuration, String(message).length * TOAST_MS_PER_CHAR);
+}
+function fadeOutToast(toast) {
+  toast.classList.add('fade-out');
+  toast.addEventListener('animationend', () => toast.remove());
+}
+function startToastTimer(toast, duration, onExpire) {
+  let remaining = duration;
+  let startedAt = 0;
+  let timer = null;
+  let stopped = false;
+  const isHeld = () => toast.matches(':hover') || toast.contains(document.activeElement);
+  const resume = () => {
+    if (stopped || timer || isHeld()) return;
+    startedAt = Date.now();
+    timer = setTimeout(() => {
+      timer = null;
+      stopped = true;
+      onExpire();
+    }, remaining);
+  };
+  const pause = () => {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = null;
+    remaining = Math.max(0, remaining - (Date.now() - startedAt));
+  };
+  toast.addEventListener('mouseenter', pause);
+  toast.addEventListener('focusin', pause);
+  toast.addEventListener('mouseleave', resume);
+  toast.addEventListener('focusout', () => setTimeout(resume));
+  resume();
+  return {
+    stop() {
+      stopped = true;
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+}
 function showToast(message, options = {}) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
@@ -827,15 +865,10 @@ function showToast(message, options = {}) {
   toast.className = isError ? 'toast toast-error' : 'toast';
   toast.textContent = message;
   container.appendChild(toast);
-  const duration = options.duration || (isError ? 5000 : 2500);
-  setTimeout(() => {
-    toast.classList.add('fade-out');
-    toast.addEventListener('animationend', () => {
-      toast.remove();
-    });
-  }, duration);
+  const duration = options.duration || getToastDuration(message, isError);
+  startToastTimer(toast, duration, () => fadeOutToast(toast));
 }
-function showUndoToast(message, onUndo, duration = 8000) {
+function showUndoToast(message, onUndo, duration = UNDO_TOAST_DURATION_MS) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
   container.querySelectorAll('.toast-undo').forEach(el => el.remove());
@@ -848,12 +881,12 @@ function showUndoToast(message, onUndo, duration = 8000) {
   undoBtn.className = 'toast-undo-btn';
   undoBtn.textContent = '復原';
   let settled = false;
+  let toastTimer = null;
   const dismiss = () => {
     if (settled) return;
     settled = true;
-    clearTimeout(timer);
-    toast.classList.add('fade-out');
-    toast.addEventListener('animationend', () => toast.remove());
+    toastTimer.stop();
+    fadeOutToast(toast);
   };
   undoBtn.addEventListener('click', async () => {
     if (settled) return;
@@ -863,7 +896,7 @@ function showUndoToast(message, onUndo, duration = 8000) {
   toast.appendChild(text);
   toast.appendChild(undoBtn);
   container.appendChild(toast);
-  const timer = setTimeout(dismiss, duration);
+  toastTimer = startToastTimer(toast, duration, dismiss);
 }
 async function restoreArticles(deletedArticles, message) {
   const presentKeys = new Set(allArticles.map(getArticleStorageKey));
@@ -896,18 +929,13 @@ function createProgressToast(initialMessage) {
         toast.textContent = isPausedState ? `${currentMsg} (已暫停)` : currentMsg;
       }
     },
-    finish(finalMessage, duration = 2500) {
+    finish(finalMessage) {
       if (!toast || !toast.parentElement) {
         showToast(finalMessage);
         return;
       }
       toast.textContent = finalMessage;
-      setTimeout(() => {
-        toast.classList.add('fade-out');
-        toast.addEventListener('animationend', () => {
-          toast.remove();
-        });
-      }, duration);
+      startToastTimer(toast, getToastDuration(finalMessage, false), () => fadeOutToast(toast));
     },
     dismiss() {
       if (toast && toast.parentElement) {
@@ -1273,90 +1301,14 @@ function waitForTabNavigation(tabId) {
   });
 }
 async function extractPostInfoFromPage(requestedPostLink, checkIntervalMs) {
-  function createExpiredPostResult(reason) {
-    return {
-      status: 'expired',
-      reason,
-      datetime: '',
-      title: '',
-      content: ''
-    };
-  }
-  function findPostElementFromPostLink(postLink) {
-    if (!postLink || typeof postLink !== 'string') return null;
-    const cleanLink = postLink.split(/[?#]/)[0].replace(/\/+$/, '');
-    const match = cleanLink.match(/(?:\/|^)(?:post|t)\/([a-zA-Z0-9_-]+)/i);
-    if (!match) return null;
-    const postId = match[1];
-    const links = Array.from(document.querySelectorAll(`a[href*="/post/${postId}"], a[href*="/t/${postId}"]`));
-    for (const link of links) {
-      const pressable = link.closest('[data-pressable-container]') ||
-        link.closest('article') ||
-        link.closest('div[data-pagelet]') ||
-        link.closest('div[tabindex="-1"]');
-      if (pressable) return pressable;
-    }
-    const timeEl = document.querySelector('time[datetime]');
-    if (timeEl) {
-      const pressable = timeEl.closest('[data-pressable-container]') ||
-        timeEl.closest('article') ||
-        timeEl.closest('div[data-pagelet]') ||
-        timeEl.closest('div[tabindex="-1"]');
-      if (pressable) return pressable;
-    }
-    return null;
-  }
-  function isLikelyThreadsFallbackDescription(text) {
-    const normalizedText = String(text).replace(/\s+/g, ' ').trim();
-    return [
-      /\d[\d,.]*\s*(?:萬|千)?次?瀏覽/i,
-      /^回覆[\s\S]*[…\.]{1,3}$/i,
-      /^尚無回覆$/i,
-      /^查看動態$/i,
-      /^更多$/i,
-      /^返回$/i,
-      /^直欄標題$/i,
-      /^附加影音內容$/i,
-      /^新增 GIF$/i,
-      /^展開撰寫工具$/i,
-      /^分享$/i,
-      /^轉發$/i,
-      /^讚$/i,
-      /^為你推薦$/,
-      /^新串文$/,
-      /^搜尋$/,
-      /^動態$/,
-      /^個人檔案$/,
-      /^聯邦宇宙$/,
-      /^洞察報告$/,
-      /^已儲存$/,
-      /^追蹤中$/,
-      /^追蹤$/,
-      /^已追蹤$/,
-      /^(?:已釘選|Pinned)$/i,
-      /^(?:作者|Author)$/i,
-      /^[·•]$/,
-      /^(?:查看|隱藏)?翻譯$/i,
-      /^(?:See|Hide)?\s*translation$/i,
-      /^查看原文$/i,
-      /^附帶原始貼文的回覆內容$/,
-      /\d[\d,.]*\s*位粉絲\s*•\s*\d[\d,.]*\s*則串文/i,
-      /\d[\d,.]*\s*followers\s*•\s*\d[\d,.]*\s*threads/i,
-      /查看\s*@.+\s*參與的最新對話/i,
-      /See\s*what\s*@.+\s*is\s*saying\s*on\s*Threads/i,
-      /在貼文中提及\s*@meta\.ai\s*，即可在這裡獲得解答/i,
-      /^\d+\s*(?:秒|分|分鐘|小時|天|週|年|s|m|h|d|w|y)(?:前)?$/i,
-      /^\d{1,2}\s*月\s*\d{1,2}\s*日$/i,
-      /^\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日$/i,
-      /^[A-Z][a-z]{2}\s+\d{1,2}(?:,\s*\d{4})?$/i,
-      /^(?:剛剛|昨天|前天|yesterday|just now)$/i,
-      /^\d+\s*[\/／]\s*\d+(?:\s*[•·]\s*[\u4e00-\u9fa5\w]+)?$/i,
-      /^\d+\s*(?:of|之)\s*\d+$/i,
-      /^(?:圖片|相片|photo|image)\s*\d+\s*[\/／,，共of\s]+\d+(?:\s*張)?$/i
-    ].some(pattern => pattern.test(normalizedText));
-  }
-  function isPlatformPlaceholderSummary(text) {
-    if (!text || typeof text !== 'string') return false;
+  const createExpiredPostResult = (reason) => ({
+    status: 'expired',
+    reason,
+    datetime: '',
+    title: '',
+    content: ''
+  });
+  const isPlatformPlaceholderSummary = (text) => {
     const normalizedText = String(text).replace(/\s+/g, ' ').trim();
     return [
       /^加入\s*Threads\s*即可分享意見/i,
@@ -1364,49 +1316,10 @@ async function extractPostInfoFromPage(requestedPostLink, checkIntervalMs) {
       /查看\s*@.+\s*參與的最新對話/i,
       /See\s*what\s*@.+\s*is\s*saying\s*on\s*Threads/i
     ].some(pattern => pattern.test(normalizedText));
-  }
-  function cleanExtractedPostContent(rawText) {
-    if (!rawText || typeof rawText !== 'string') return '';
-    let cleaned = rawText
-      .replace(/[\u00a0\u2000-\u200b\u2028\u2029]/g, ' ')
-      .replace(/(?:[\r\n\s])*\b\d+\s*[\r\n\s]*[\/／]\s*[\r\n\s]*\d+\b(?:\s*[•·]\s*[\u4e00-\u9fa5\w]+)?\s*$/g, '')
-      .replace(/^\s*\b\d+\s*[\r\n\s]*[\/／]\s*[\r\n\s]*\d+\b(?:\s*[•·]\s*[\u4e00-\u9fa5\w]+)?(?:[\r\n\s])*/g, '')
-      .replace(/(?:[\r\n\s])*(?:查看|隱藏)?翻譯\s*$/g, '')
-      .replace(/(?:[\r\n\s])*(?:See|Hide)?\s*translation\s*$/gi, '')
-      .replace(/(?:[\r\n\s])*查看原文\s*$/g, '')
-      .trim();
-    const lines = cleaned.split(/\r?\n/);
-    const filteredLines = [];
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) {
-        if (filteredLines.length > 0 && filteredLines[filteredLines.length - 1] !== '') {
-          filteredLines.push('');
-        }
-        continue;
-      }
-      if (isLikelyThreadsFallbackDescription(line)) {
-        continue;
-      }
-      if (/^[\/／]$/.test(line)) {
-        if (filteredLines.length > 0 && /^\d+$/.test(filteredLines[filteredLines.length - 1].trim())) {
-          filteredLines.pop();
-        }
-        if (i + 1 < lines.length && /^\d+$/.test(lines[i + 1].trim())) {
-          i++;
-        }
-        continue;
-      }
-      filteredLines.push(lines[i]);
-    }
-    while (filteredLines.length > 0 && filteredLines[filteredLines.length - 1] === '') {
-      filteredLines.pop();
-    }
-    while (filteredLines.length > 0 && filteredLines[0] === '') {
-      filteredLines.shift();
-    }
-    return filteredLines.join('\n');
-  }
+  };
+  const isContentScriptReady = () => typeof findPostElementFromPostLink === 'function' &&
+    typeof extractPostContent === 'function' &&
+    typeof extractTags === 'function';
   return new Promise((resolve) => {
     const check = () => {
       const bodyText = document.body ? (document.body.innerText || document.body.textContent || '') : '';
@@ -1416,15 +1329,16 @@ async function extractPostInfoFromPage(requestedPostLink, checkIntervalMs) {
         resolve(createExpiredPostResult('post-not-found'));
         return true;
       }
-      const requestedPostElement = requestedPostLink ? findPostElementFromPostLink(requestedPostLink) : null;
-      if (requestedPostLink && !requestedPostElement) {
+      if (!isContentScriptReady()) {
         return false;
       }
-      const sourceRoot = requestedPostElement || document;
+      const requestedPostElement = findPostElementFromPostLink(requestedPostLink);
+      if (!requestedPostElement) {
+        return false;
+      }
       let datetime = null;
       let title = '';
-      let content = '';
-      const timeElement = requestedPostElement?.querySelector('time[datetime]') || document.querySelector('time[datetime]') || null;
+      const timeElement = requestedPostElement.querySelector('time[datetime]') || document.querySelector('time[datetime]');
       if (timeElement) {
         datetime = timeElement.getAttribute('datetime');
         title = timeElement.getAttribute('title') || '';
@@ -1447,146 +1361,28 @@ async function extractPostInfoFromPage(requestedPostLink, checkIntervalMs) {
           } catch (e) { }
         }
       }
-      if (!content) {
-        let rawContainers = Array.from(
-          sourceRoot.querySelectorAll(
-            'span[class*="xo1l8bm"][dir="auto"], ' +
-            'span[class*="xi7mnp6"][dir="auto"], ' +
-            'div[class*="x1iorvi4"][dir="auto"]'
-          )
-        );
-        if (rawContainers.length === 0) {
-          rawContainers = Array.from(
-            sourceRoot.querySelectorAll(
-              'div[data-pagelet="threads_post_page_0"] div[dir="auto"], ' +
-              'div[dir="auto"]'
-            )
-          );
-        }
-        const candidateContainers = rawContainers.filter(container => {
-          if (container.closest('h1') || container.closest('h2') || container.closest('h3') || container.closest('[aria-label="直欄標題"]')) return false;
-          if (container.closest('button') || container.closest('[role="button"]')) return false;
-          if (container.closest('[contenteditable="true"]')) return false;
-          if (container.closest('time') || container.querySelector('time')) return false;
-          if (container.closest('a[href*="/post/"]') || container.closest('a[href*="/t/"]') || container.querySelector('a[href*="/post/"]') || container.querySelector('a[href*="/t/"]')) return false;
-          if (container.closest('a[href*="/@"]')) return false;
-          if (container.closest('a[href*="/search"]')) return false;
-          if (container.closest('picture') || container.closest('video') || container.closest('canvas') || container.closest('[aria-roledescription="slide"]') || container.querySelector('img:not([aria-hidden="true"]), video, picture, canvas')) return false;
-          if (container.closest('.x6s0dn4.xmixu3c.x78zum5.xsag5q8.x1y1aw1k')) return false;
-          let parent = container.parentElement;
-          while (parent && parent !== sourceRoot) {
-            const text = parent.textContent;
-            if (text.includes('在貼文中提及') && text.includes('@meta.ai') && text.includes('即可在這裡獲得解答')) {
-              return false;
-            }
-            parent = parent.parentElement;
-          }
-          return true;
-        });
-        const topContainers = candidateContainers.filter(el =>
-          !candidateContainers.some(other => other !== el && other.contains(el))
-        );
-        const extractedTexts = topContainers
-          .map(el => {
-            const clone = el.cloneNode(true);
-            const childButtons = clone.querySelectorAll('button, [role="button"]');
-            for (const btn of childButtons) {
-              const btnText = (btn.innerText || btn.textContent || '').trim();
-              if (
-                isLikelyThreadsFallbackDescription(btnText) ||
-                /^(?:查看|隱藏)?翻譯$/i.test(btnText) ||
-                /^(?:See|Hide)?\s*translation$/i.test(btnText) ||
-                /^查看原文$/i.test(btnText)
-              ) {
-                btn.remove();
-              }
-            }
-            return (clone.innerText || clone.textContent || '').trim();
-          })
-          .map(text => cleanExtractedPostContent(text))
-          .filter(text => text && !isLikelyThreadsFallbackDescription(text))
-          .filter((text, index, array) => array.indexOf(text) === index);
-        if (extractedTexts.length > 0) {
-          content = cleanExtractedPostContent(extractedTexts.join('\n\n'));
-        }
-      }
-      if (!content) {
-        const metaDescription = document.querySelector('meta[property="og:description"]');
-        if (metaDescription) {
-          const metaContent = metaDescription.getAttribute('content') || '';
-          if (metaContent && !metaContent.includes('加入 Threads 即可分享意見') && !isLikelyThreadsFallbackDescription(metaContent)) {
-            content = metaContent;
-          }
-        }
-      }
-      if (requestedPostLink && !datetime && content && isPlatformPlaceholderSummary(content)) {
+      const content = extractPostContent(requestedPostElement);
+      const metaDescription = document.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+      if (!datetime && !content && isPlatformPlaceholderSummary(metaDescription)) {
         resolve(createExpiredPostResult('fallback-summary'));
         return true;
       }
       if (datetime || content) {
-        let tags = [];
-        try {
-          const tagElements = sourceRoot.querySelectorAll('a[href*="serp_type=tags"], a[href*="tag_id="]');
-          tagElements.forEach(el => {
-            let tagVal = '';
-            const href = el.getAttribute('href');
-            if (href) {
-              try {
-                const url = new URL(href, 'https://www.threads.net');
-                const q = url.searchParams.get('q');
-                if (q) {
-                  tagVal = q.trim();
-                }
-              } catch (e) { }
-            }
-            if (!tagVal) {
-              tagVal = el.textContent.trim();
-            }
-            if (tagVal) {
-              const cleanTag = tagVal.replace(/^#/, '').trim();
-              if (cleanTag) {
-                tags.push(cleanTag);
-              }
-            }
-          });
-        } catch (err) { }
-        if (content) {
-          const hashtagRegex = /#([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
-          let match;
-          while ((match = hashtagRegex.exec(content)) !== null) {
-            tags.push(match[1]);
-          }
-          const languages = ['JavaScript', 'Python', 'Java', 'C\\+\\+', 'C#', 'HTML', 'CSS', 'SQL', 'TypeScript', 'React', 'Vue', 'Angular'];
-          languages.forEach(lang => {
-            const pattern = lang.includes('\\') ? lang : `\\b${lang}\\b`;
-            if (new RegExp(pattern, 'i').test(content)) {
-              tags.push(lang.replace(/\\\+/g, '+'));
-            }
-          });
-        }
-        tags = [...new Set(tags.map(t => t.normalize('NFC')))];
         resolve({
           status: 'active',
           datetime,
           title,
           content,
-          tags
+          tags: extractTags(content, requestedPostElement)
         });
         return true;
       }
       return false;
     };
-    if (check()) return;
-    let lastCheckAt = performance.now();
+    let lastCheckAt = 0;
     let trailingTimer = null;
-    let observer = null;
-    const runCheck = () => {
-      clearTimeout(trailingTimer);
-      trailingTimer = null;
-      lastCheckAt = performance.now();
-      if (check()) observer.disconnect();
-    };
-    observer = new MutationObserver(() => {
+    let done = false;
+    const observer = new MutationObserver(() => {
       const elapsed = performance.now() - lastCheckAt;
       if (elapsed >= checkIntervalMs) {
         runCheck();
@@ -1594,13 +1390,27 @@ async function extractPostInfoFromPage(requestedPostLink, checkIntervalMs) {
         trailingTimer = setTimeout(runCheck, checkIntervalMs - elapsed);
       }
     });
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ['datetime', 'content']
-    });
+    const runCheck = () => {
+      clearTimeout(trailingTimer);
+      trailingTimer = null;
+      lastCheckAt = performance.now();
+      if (check()) {
+        done = true;
+        observer.disconnect();
+      } else if (!isContentScriptReady()) {
+        trailingTimer = setTimeout(runCheck, checkIntervalMs);
+      }
+    };
+    runCheck();
+    if (!done) {
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['datetime', 'content']
+      });
+    }
   });
 }
 function buildThreadsEmbedCode(postLink) {
@@ -1833,17 +1643,7 @@ function parseJsEmbedFile(content) {
   const jsonArrayMatch = content.match(/(?:const\s+)?posts\s*=\s*(\[[\s\S]*\])/);
   if (jsonArrayMatch) {
     try {
-      const jsonStr = jsonArrayMatch[1].trim();
-      let jsonData = null;
-      try {
-        jsonData = JSON.parse(jsonStr);
-      } catch (jsonErr) {
-        try {
-          jsonData = new Function(`return ${jsonStr};`)();
-        } catch (fnErr) {
-          console.error('[Dashboard] parseJsEmbedFile new Function 錯誤:', fnErr);
-        }
-      }
+      const jsonData = JSON.parse(jsonArrayMatch[1].trim());
       if (Array.isArray(jsonData) && jsonData.length > 0) {
         if (jsonData[0].timestamp !== undefined || jsonData[0].postLink !== undefined) {
           return jsonData.map(item => {

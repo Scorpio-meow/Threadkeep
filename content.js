@@ -110,7 +110,6 @@ function init() {
     handleEmbedFrameResize();
     return;
   }
-  console.log('[Threads Saver] 插件初始化');
   if (!document.body) {
     console.warn('[Threads Saver] document.body 不存在，延遲初始化');
     setTimeout(init, 500);
@@ -127,6 +126,17 @@ function init() {
     subtree: true
   });
   scheduleEmbedDialogCheck();
+  void trackThemePreference();
+}
+async function trackThemePreference() {
+  const result = await safeStorageGet([THEME_PREFERENCE_KEY]);
+  window.__threadsSaverThemePreference = result[THEME_PREFERENCE_KEY];
+  if (!isExtensionAlive()) return;
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && THEME_PREFERENCE_KEY in changes) {
+      window.__threadsSaverThemePreference = changes[THEME_PREFERENCE_KEY].newValue;
+    }
+  });
 }
 function isSinglePostPage() {
   const path = window.location.pathname;
@@ -523,7 +533,6 @@ async function saveArticleFromEmbedDialog(dialog, context = {}) {
     author: finalAuthor || '未知作者',
     tags: extractTags(finalContent, postElement)
   };
-  console.log('[Threads Saver] 準備儲存嵌入對話框內容:', articleData.postLink);
   await saveArticle(articleData, null);
 }
 async function processOpenEmbedDialogs() {
@@ -548,7 +557,6 @@ async function processOpenEmbedDialogs() {
       dialog.closest('[role="article"]');
     const preContent = postElement ? extractPostContent(postElement) : '';
     const preAuthor = postElement ? extractAuthorFromPost(postElement, postLink) : '';
-    console.log('[Threads Saver] 偵測到可直接讀取的內嵌對話框');
     try {
       await saveArticleFromEmbedDialog(dialog, {
         postElement,
@@ -572,12 +580,28 @@ function scheduleEmbedDialogCheck() {
     void processOpenEmbedDialogs();
   });
 }
+const EMBED_DIALOG_POLL_MS = 250;
+const EMBED_DIALOG_TIMEOUT_MS = 8000;
+const THREADS_ERROR_TEXT_MAX_LENGTH = 300;
+const THREADS_ERROR_PATTERNS = [
+  /發生錯誤.*技術錯誤/,
+  /Something went wrong/i
+];
+function isThreadsErrorNode(node) {
+  const element = node instanceof Element ? node : node.parentElement;
+  if (!element || element.closest('.threads-save-notification, [data-pressable-container]') || element.querySelector('[data-pressable-container]')) {
+    return false;
+  }
+  const text = (node.textContent || '').trim();
+  return text.length > 0 &&
+    text.length <= THREADS_ERROR_TEXT_MAX_LENGTH &&
+    THREADS_ERROR_PATTERNS.some(pattern => pattern.test(text));
+}
 function handleEmbedTriggerClick(e) {
   const embedButton = e.target instanceof Element ? e.target.closest(EMBED_TRIGGER_SELECTORS) : null;
   if (!embedButton || !isEmbedTriggerElement(embedButton)) {
     return;
   }
-  console.log('[Threads Saver] 偵測到「取得內嵌程式碼」被點擊');
   let preContent = '';
   let preAuthor = '';
   const postElement =
@@ -586,44 +610,69 @@ function handleEmbedTriggerClick(e) {
     embedButton.closest('article') ||
     embedButton.closest('[role="article"]');
   if (postElement) {
-    console.log('[Threads Saver] 點擊前找到貼文容器元素');
     preContent = extractPostContent(postElement);
-    if (preContent) {
-      console.log('[Threads Saver] 提取到內容:', preContent.substring(0, 50));
-    }
     const authorLink = postElement.querySelector('a[role="link"][href*="/@"]');
     if (authorLink) {
       preAuthor = authorLink.innerText || '';
-      console.log('[Threads Saver] 點擊前提取到作者:', preAuthor);
     }
-  } else {
-    console.log('[Threads Saver] 點擊前未找到貼文容器元素');
   }
-  setTimeout(async () => {
-    const dialogs = document.querySelectorAll('[role="dialog"]');
-    if (dialogs.length === 0) {
+  const existingDialogs = new Set(document.querySelectorAll('[role="dialog"]'));
+  const startedAt = Date.now();
+  let sawDialog = false;
+  let threadsErrorShown = false;
+  const errorObserver = new MutationObserver((records) => {
+    if (threadsErrorShown) return;
+    threadsErrorShown = records.some(record => Array.from(record.addedNodes).some(isThreadsErrorNode));
+  });
+  errorObserver.observe(document.body, { childList: true, subtree: true });
+  let poll = null;
+  const stopWaiting = () => {
+    clearInterval(poll);
+    errorObserver.disconnect();
+  };
+  poll = setInterval(async () => {
+    const dialogs = Array.from(document.querySelectorAll('[role="dialog"]')).filter(d => !existingDialogs.has(d));
+    if (dialogs.length > 0) {
+      sawDialog = true;
+    }
+    if (dialogs.some(d => d.dataset.threadsSaverSaved === 'true' || d.dataset.threadsSaverSaving === 'true')) {
+      stopWaiting();
+      return;
+    }
+    const dialog = [...dialogs].reverse().find(d => extractEmbedCodeFromDialog(d));
+    if (dialog) {
+      stopWaiting();
+      dialog.dataset.threadsSaverSaving = 'true';
+      try {
+        await saveArticleFromEmbedDialog(dialog, {
+          postElement,
+          preContent,
+          preAuthor
+        });
+        dialog.dataset.threadsSaverSaved = 'true';
+      } finally {
+        delete dialog.dataset.threadsSaverSaving;
+      }
+      return;
+    }
+    if (threadsErrorShown) {
+      stopWaiting();
+      console.warn('[Threads Saver] Threads 顯示錯誤訊息，沒有產生內嵌程式碼');
+      showNotification('Threads 回報錯誤，請稍後再試', { type: 'error' });
+      return;
+    }
+    if (Date.now() - startedAt < EMBED_DIALOG_TIMEOUT_MS) {
+      return;
+    }
+    stopWaiting();
+    if (dialogs.length > 0) {
+      console.warn('[Threads Saver] 對話框中沒有可讀取的內嵌程式碼');
+      showNotification('找不到可儲存的內嵌程式碼', { type: 'error' });
+    } else if (!sawDialog) {
       console.error('[Threads Saver] 找不到對話框');
       showNotification('找不到內嵌程式碼對話框', { type: 'error' });
-      return;
     }
-    const dialog = dialogs[dialogs.length - 1];
-    console.log('[Threads Saver] 找到', dialogs.length, '個對話框,使用最新的一個');
-    if (dialog.dataset.threadsSaverSaved === 'true' || dialog.dataset.threadsSaverSaving === 'true') {
-      console.log('[Threads Saver] 對話框已處理過,跳過');
-      return;
-    }
-    dialog.dataset.threadsSaverSaving = 'true';
-    try {
-      await saveArticleFromEmbedDialog(dialog, {
-        postElement,
-        preContent,
-        preAuthor
-      });
-      dialog.dataset.threadsSaverSaved = 'true';
-    } finally {
-      delete dialog.dataset.threadsSaverSaving;
-    }
-  }, 1000);
+  }, EMBED_DIALOG_POLL_MS);
 }
 function extractTags(text, container = null) {
   const tags = [];
@@ -668,16 +717,18 @@ function extractTags(text, container = null) {
       tags.push(lang.replace(/\\\+/g, '+'));
     }
   });
-  return [...new Set(tags.map(t => t.normalize('NFC')))];
+  const seenTags = new Set();
+  return tags
+    .map(t => t.normalize('NFC'))
+    .filter(t => {
+      const key = t.toLowerCase();
+      if (seenTags.has(key)) return false;
+      seenTags.add(key);
+      return true;
+    });
 }
 async function saveArticle(articleData, button) {
   try {
-    console.log('[Threads Saver] ========== 開始儲存流程 ==========');
-    console.log('[Threads Saver] 文章資料:', {
-      postLink: articleData.postLink,
-      author: articleData.author,
-      contentLength: articleData.content?.length
-    });
     if (isExtensionAlive()) {
       try {
         await migrateLegacyArticles();
@@ -686,26 +737,18 @@ async function saveArticle(articleData, button) {
       }
     }
     const storageKey = getArticleStorageKey(articleData);
-    console.log('[Threads Saver] 準備儲存的文章:', storageKey);
     const result = await safeStorageGet([storageKey]);
     const isExisting = storageKey in result;
-    console.log('[Threads Saver] 檢查重複結果:', isExisting ? '已存在，將更新' : '新文章');
     if (isExisting) {
       await safeStorageSet({ [storageKey]: articleData });
-      console.log('[Threads Saver] 更新成功!');
+      console.info('[Threads Saver] 已更新', storageKey);
       if (button) {
         button.classList.add('saved');
       }
       showNotification('內嵌程式碼已更新');
     } else {
-      console.log('[Threads Saver] 開始寫入儲存...');
-      try {
-        await safeStorageSet({ [storageKey]: articleData });
-        console.log('[Threads Saver] 儲存成功!');
-      } catch (saveError) {
-        console.error('[Threads Saver] 寫入失敗:', saveError);
-        throw saveError;
-      }
+      await safeStorageSet({ [storageKey]: articleData });
+      console.info('[Threads Saver] 已儲存', storageKey);
       if (button) {
         button.classList.add('saved');
         button.innerHTML = `
@@ -718,22 +761,19 @@ async function saveArticle(articleData, button) {
       showNotification('內嵌程式碼已儲存');
     }
   } catch (error) {
-    console.error('[Threads Saver] ========== 儲存失敗 ==========');
-    console.error('[Threads Saver] 錯誤類型:', error.name);
-    console.error('[Threads Saver] 錯誤訊息:', error.message);
-    console.error('[Threads Saver] 完整錯誤:', error);
+    console.error('[Threads Saver] 儲存失敗:', error);
     if (error.message && (error.message.includes('QUOTA') || error.message.includes('quota'))) {
-      console.error('[Threads Saver] 錯誤原因: 儲存空間配額已滿');
       showNotification('儲存空間已滿!請開啟擴充功能清理舊文章', { type: 'error' });
     } else if (error.message && error.message.includes('Extension context invalidated')) {
-      console.error('[Threads Saver] 錯誤原因: 擴充功能已失效');
       showNotification('擴充功能已失效,請重新載入頁面', { type: 'error' });
     } else {
-      console.error('[Threads Saver] 錯誤原因: 未知');
       showNotification('儲存失敗: ' + (error.message || '請稍後再試'), { type: 'error' });
     }
   }
 }
+const NOTIFICATION_DURATION_MS = 4000;
+const NOTIFICATION_ERROR_DURATION_MS = 6000;
+const NOTIFICATION_MS_PER_CHAR = 120;
 function showNotification(message, options = {}) {
   const isError = options.type === 'error';
   const notification = document.createElement('div');
@@ -742,11 +782,33 @@ function showNotification(message, options = {}) {
     : 'threads-save-notification';
   notification.setAttribute('role', isError ? 'alert' : 'status');
   notification.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+  const themePreference = window.__threadsSaverThemePreference;
+  if (themePreference === 'light' || themePreference === 'dark') {
+    notification.dataset.theme = themePreference;
+  }
   notification.textContent = message;
   document.body.appendChild(notification);
-  const duration = options.duration || (isError ? 6000 : 2500);
-  setTimeout(() => {
+  const baseDuration = isError ? NOTIFICATION_ERROR_DURATION_MS : NOTIFICATION_DURATION_MS;
+  let remaining = options.duration || Math.max(baseDuration, message.length * NOTIFICATION_MS_PER_CHAR);
+  let startedAt = 0;
+  let timer = null;
+  let leaving = false;
+  const leave = () => {
+    leaving = true;
     notification.classList.add('is-leaving');
     setTimeout(() => notification.remove(), 300);
-  }, duration);
+  };
+  const resume = () => {
+    if (leaving || timer) return;
+    startedAt = Date.now();
+    timer = setTimeout(leave, remaining);
+  };
+  notification.addEventListener('mouseenter', () => {
+    if (leaving || !timer) return;
+    clearTimeout(timer);
+    timer = null;
+    remaining = Math.max(0, remaining - (Date.now() - startedAt));
+  });
+  notification.addEventListener('mouseleave', resume);
+  resume();
 }

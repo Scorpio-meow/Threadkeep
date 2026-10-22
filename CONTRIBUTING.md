@@ -69,11 +69,12 @@
 - **不使用原生對話框**：`confirm()`、`alert()`、`prompt()` 一律改用頁內 Modal。Popup 失焦時原生對話框會連同 Popup 一起關閉並回傳預設值，容易誤觸破壞性操作。
 - **安全渲染**：貼文內文、作者、標籤等來自網頁的字串一律以 `textContent` 或 `escapeHtml` 輸出，連結與 iframe 來源經過 `sanitizeUrl`；`postMessage` 必須驗證來源網域。
 - **無障礙**：新 Modal 需有 `role="dialog"`、`aria-modal="true"`、焦點鎖定與焦點還原；可點擊元素用 `button`，點擊區域至少 24×24px；停用狀態用 `disabled` 屬性，不要只靠 `pointer-events: none`。
+- **顏色與焦點樣式**：新增顏色時，在樣式表 `:root` 定義 CSS 變數，並在 `@media (prefers-color-scheme: dark)` 區塊補上深色值，文字對比兩種模式都至少 4.5:1；只靠背景色區分的狀態（例如選取、目前的分頁），要在 `@media (forced-colors: active)` 區塊用系統顏色補上邊框。焦點樣式不要寫 `outline: none` 或只用陰影，一律用 `outline: 2px solid var(--focus-color)` 加上 `outline-offset`，並確認外框沒有被 `overflow` 裁切。
 - **權限最小化**：新增 `permissions` 或 `host_permissions` 前請先在 Issue 說明理由。
 
 修改 `content.js` 的清洗函式（`cleanExtractedPostContent`、`isLikelyThreadsFallbackDescription`）時另外注意：
 
-- `dashboard.js` 的 `extractPostInfoFromPage` 內有同名函式的副本。這個函式會透過 `chrome.scripting.executeScript` 注入背景分頁，必須自給自足，無法引用 `content.js`，因此過濾規則要兩邊一起改。
+- 擷取邏輯只有 `content.js` 一份。`dashboard.js` 的 `extractPostInfoFromPage` 注入背景分頁後，直接呼叫該分頁上 `content.js` 的 `findPostElementFromPostLink`、`extractPostContent` 與 `extractTags`；重新命名或改變這三個函式的參數時，要一併修改 `extractPostInfoFromPage`。
 - [GitHub Pages 介紹頁](https://scorpio-meow.github.io/Threads-embedded-code/)的互動示範會直接從 `main` 分支載入 `content.js` 並呼叫這兩個函式。重新命名或移除會讓示範失效，請一併修改 `docs/assets/js/cleaner-worker.js`。
 
 ## 手動測試清單
@@ -86,6 +87,8 @@
 - **更新貼文資料**：暫停、繼續、取消；勾選與未勾選時的更新範圍；失效貼文的標記與恢復。
 - **匯入匯出**：合併與完全覆寫（含二次確認），匯出的檔案能再次匯入。
 - **鍵盤與動態**：只用鍵盤完成上述操作，並在系統開啟「減少動態效果」時確認轉場動畫停用。
+- **外觀模式**：在控制面板的「外觀」選單分別選跟隨系統、淺色、深色，並切換作業系統的淺色／深色設定，確認 Popup、控制面板與 Threads 頁面的通知都跟著改變；在 Windows 開啟高對比模式，確認焦點外框、勾選框與選取狀態看得到。
+- **提示**：滑鼠移到提示上時倒數暫停；用鍵盤把焦點移到「復原」按鈕時，提示不會消失。
 
 ## 文件同步
 

@@ -1,4 +1,8 @@
 const SEARCH_DEBOUNCE_MS = 180;
+const TOAST_DURATION_MS = 4000;
+const TOAST_ERROR_DURATION_MS = 6000;
+const TOAST_MS_PER_CHAR = 120;
+const UNDO_TOAST_DURATION_MS = 8000;
 const RENDER_BATCH_SIZE = 30;
 const LOAD_MORE_ROOT_MARGIN = '300px';
 let searchDebounceTimer = null;
@@ -52,6 +56,7 @@ function isExpiredArticle(article) {
 }
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', async () => {
+    void setupThemePreference(null);
     await loadArticles();
     setupEventListeners();
     setupStorageSync();
@@ -241,7 +246,7 @@ function updateFilterValueOptions() {
       values.sort((a, b) => a.localeCompare(b, 'zh-TW'));
       break;
     case 'tag':
-      values = [...new Set(allArticles.flatMap(a => a.tags || []).filter(Boolean))];
+      values = getTagGroups(allArticles).map(group => group.label);
       values.sort((a, b) => a.localeCompare(b, 'zh-TW'));
       break;
     default:
@@ -254,6 +259,7 @@ function updateFilterValueOptions() {
       const option = document.createElement('option');
       option.value = value;
       option.textContent = value;
+      option.selected = value.toLowerCase() === currentFilterValue.toLowerCase();
       filterValueSelect.appendChild(option);
     });
   } else {
@@ -537,7 +543,6 @@ function formatTime(isoString) {
   });
 }
 async function deleteArticle(articleId) {
-  console.log('[Popup] deleteArticle called with ID:', articleId);
   const article = allArticles.find(a => a.id === articleId);
   if (!article) return;
   allArticles = allArticles.filter(a => a.id !== articleId);
@@ -565,17 +570,13 @@ if (typeof window !== 'undefined') {
   };
 }
 async function copyEmbed(articleId) {
-  console.log('[Popup] copyEmbed called with ID:', articleId);
   const article = allArticles.find(a => a.id === articleId);
-  console.log('[Popup] Found article:', article ? 'Yes' : 'No');
-  console.log('[Popup] Has embedCode:', article?.embedCode ? 'Yes' : 'No');
   if (!article || !article.embedCode) {
     showToast('找不到內嵌程式碼');
     return;
   }
   try {
     await navigator.clipboard.writeText(article.embedCode);
-    console.log('[Popup] 複製成功');
     showToast('已複製內嵌程式碼');
   } catch (err) {
     console.error('[Popup] 複製失敗:', err);
@@ -764,20 +765,9 @@ function parseJsEmbedFile(content) {
   const jsonArrayMatch = content.match(/(?:const\s+)?posts\s*=\s*(\[[\s\S]*\])/);
   if (jsonArrayMatch) {
     try {
-      const jsonStr = jsonArrayMatch[1].trim();
-      let jsonData = null;
-      try {
-        jsonData = JSON.parse(jsonStr);
-      } catch (jsonErr) {
-        try {
-          jsonData = new Function(`return ${jsonStr};`)();
-        } catch (fnErr) {
-          console.error('[Popup] parseJsEmbedFile new Function 錯誤:', fnErr);
-        }
-      }
+      const jsonData = JSON.parse(jsonArrayMatch[1].trim());
       if (Array.isArray(jsonData) && jsonData.length > 0) {
         if (jsonData[0].timestamp !== undefined || jsonData[0].postLink !== undefined) {
-          console.log('[Popup] 識別為完整資料格式');
           return jsonData.map(item => {
             let fullEmbedCode = item.embedCode || '';
             if (fullEmbedCode && !fullEmbedCode.includes('<script')) {
@@ -861,6 +851,48 @@ async function clearAllArticles() {
     showToast('已復原全部貼文');
   });
 }
+function getToastDuration(message, isError) {
+  const baseDuration = isError ? TOAST_ERROR_DURATION_MS : TOAST_DURATION_MS;
+  return Math.max(baseDuration, String(message).length * TOAST_MS_PER_CHAR);
+}
+function fadeOutToast(toast) {
+  toast.classList.add('fade-out');
+  toast.addEventListener('animationend', () => toast.remove());
+}
+function startToastTimer(toast, duration, onExpire) {
+  let remaining = duration;
+  let startedAt = 0;
+  let timer = null;
+  let stopped = false;
+  const isHeld = () => toast.matches(':hover') || toast.contains(document.activeElement);
+  const resume = () => {
+    if (stopped || timer || isHeld()) return;
+    startedAt = Date.now();
+    timer = setTimeout(() => {
+      timer = null;
+      stopped = true;
+      onExpire();
+    }, remaining);
+  };
+  const pause = () => {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = null;
+    remaining = Math.max(0, remaining - (Date.now() - startedAt));
+  };
+  toast.addEventListener('mouseenter', pause);
+  toast.addEventListener('focusin', pause);
+  toast.addEventListener('mouseleave', resume);
+  toast.addEventListener('focusout', () => setTimeout(resume));
+  resume();
+  return {
+    stop() {
+      stopped = true;
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+}
 function showToast(message, options = {}) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
@@ -869,13 +901,10 @@ function showToast(message, options = {}) {
   toast.className = isError ? 'toast toast-error' : 'toast';
   toast.textContent = message;
   container.appendChild(toast);
-  const duration = options.duration || (isError ? 5000 : 2500);
-  setTimeout(() => {
-    toast.classList.add('fade-out');
-    toast.addEventListener('animationend', () => toast.remove());
-  }, duration);
+  const duration = options.duration || getToastDuration(message, isError);
+  startToastTimer(toast, duration, () => fadeOutToast(toast));
 }
-function showUndoToast(message, onUndo, duration = 8000) {
+function showUndoToast(message, onUndo, duration = UNDO_TOAST_DURATION_MS) {
   const container = document.getElementById('toastContainer');
   if (!container) return;
   container.querySelectorAll('.toast-undo').forEach(el => el.remove());
@@ -888,12 +917,12 @@ function showUndoToast(message, onUndo, duration = 8000) {
   undoBtn.type = 'button';
   undoBtn.textContent = '復原';
   let settled = false;
+  let toastTimer = null;
   const dismiss = () => {
     if (settled) return;
     settled = true;
-    clearTimeout(timer);
-    toast.classList.add('fade-out');
-    toast.addEventListener('animationend', () => toast.remove());
+    toastTimer.stop();
+    fadeOutToast(toast);
   };
   undoBtn.addEventListener('click', async () => {
     if (settled) return;
@@ -903,7 +932,7 @@ function showUndoToast(message, onUndo, duration = 8000) {
   toast.appendChild(text);
   toast.appendChild(undoBtn);
   container.appendChild(toast);
-  const timer = setTimeout(dismiss, duration);
+  toastTimer = startToastTimer(toast, duration, dismiss);
 }
 const FOCUSABLE_SELECTOR = [
   'a[href]',

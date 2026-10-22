@@ -361,7 +361,7 @@ Ctrl + Shift + L 選取所有相同字詞
                   <use href="assets/icons.svg#i-arrow-counter-clockwise"></use>
                 </svg></span>
               <h3 class="tile__title">刪錯了還能復原</h3>
-              <p class="tile__text">刪除、批次刪除與清除全部之後，8 秒內按「復原」就還原。</p>
+              <p class="tile__text">刪除、批次刪除與清除全部之後，8 秒內按「復原」就還原；滑鼠移到提示上倒數就會暫停。</p>
             </div>
             <div class="tile__media tile__media--center">
               <img src="assets/img/ui-undo.webp" width="242" height="113" loading="lazy" alt="提示列顯示「已刪除 1 篇貼文」與「復原」按鈕">
@@ -412,7 +412,8 @@ Ctrl + Shift + L 選取所有相同字詞
                   <use href="assets/icons.svg#i-keyboard"></use>
                 </svg></span>
               <h3 class="tile__title">只用鍵盤也行</h3>
-              <p class="tile__text">對話框會鎖定焦點，關閉後回到原本的按鈕；通知會被螢幕閱讀器念出來，也尊重「減少動態效果」設定。</p>
+              <p class="tile__text">對話框會鎖定焦點，關閉後回到原本的按鈕；通知會被螢幕閱讀器念出來，滑鼠移上去就暫停倒數。深色模式可跟隨系統或在控制面板手動切換，也支援「減少動態效果」與 Windows 高對比模式。
+              </p>
             </div>
             <div class="keys" aria-hidden="true">
               <kbd>Tab</kbd><kbd>Esc</kbd><kbd>←</kbd><kbd>→</kbd>
@@ -809,8 +810,8 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
               </svg></summary>
             <div class="faq__answer">
               <p>先確認已登入 Threads，未登入時官方對話框可能產生不了內嵌碼；網址也要是 threads.com 或 threads.net。如果開發者工具出現「Extension context
-                invalidated」，代表擴充功能剛重新載入過，重新整理 Threads 頁面就會恢復。如果跳出「找不到可儲存的內嵌程式碼」，通常是 Threads
-                這次沒產生內嵌碼，關掉對話框再點一次「取得內嵌程式碼」就好。</p>
+                invalidated」，代表擴充功能剛重新載入過，重新整理 Threads 頁面就會恢復。如果 Threads 顯示「發生錯誤。這可能是技術錯誤所導致…」，或擴充功能跳出「Threads
+                回報錯誤」「找不到可儲存的內嵌程式碼」，都是 Threads 這次沒產生內嵌碼，稍等一下再點一次「取得內嵌程式碼」就好。</p>
             </div>
           </details>
           <details class="faq__item" name="faq">
@@ -849,7 +850,8 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
                 <use href="assets/icons.svg#i-caret-down"></use>
               </svg></summary>
             <div class="faq__answer">
-              <p>刪除、批次刪除與清除全部都能復原：畫面下方的提示會出現「復原」按鈕，8 秒內按下就還原。提示消失後就無法復原，所以清空前建議先匯出完整備份。</p>
+              <p>刪除、批次刪除與清除全部都能復原：畫面下方的提示會出現「復原」按鈕，8 秒內按下就還原；滑鼠移到提示上，或用鍵盤把焦點移到「復原」按鈕時，倒數會暫停。提示消失後就無法復原，所以清空前建議先匯出完整備份。
+              </p>
             </div>
           </details>
           <details class="faq__item" name="faq">
