@@ -10,17 +10,85 @@ let cancelUpdateRequested = false;
 let activeProgressToast = null;
 const CLOUD_VISIBLE_LIMIT = 15;
 const SEARCH_DEBOUNCE_MS = 180;
+const RENDER_BATCH_SIZE = 60;
+const LOAD_MORE_ROOT_MARGIN = '600px';
+const CARD_PREVIEW_LENGTH = 150;
+const UPDATE_PERSIST_BATCH_SIZE = 20;
+const POST_INFO_CHECK_INTERVAL_MS = 80;
+const POST_FETCH_TIMEOUT_MS = 60000;
 let searchDebounceTimer = null;
 let confirmModalResolve = null;
 let importModalResolve = null;
 let currentPreviewIndex = -1;
 let currentPreviewArticle = null;
 let currentPreviewTab = 'embed';
+let renderedCount = 0;
+let loadMoreObserver = null;
+const searchTextCache = new WeakMap();
+const sortCollator = new Intl.Collator('zh-TW');
+const ownWriteSignatures = new Map();
 document.addEventListener('DOMContentLoaded', async () => {
   await loadArticles();
   setupEventListeners();
   setupModalListeners();
+  setupStorageSync();
 });
+function getArticleIdSignature(articles) {
+  return articles.map(a => a.id).join('\n');
+}
+async function writeSavedArticles(articles) {
+  const signature = getArticleIdSignature(articles);
+  ownWriteSignatures.set(signature, (ownWriteSignatures.get(signature) || 0) + 1);
+  try {
+    await chrome.storage.local.set({ savedArticles: articles });
+  } catch (err) {
+    const pending = ownWriteSignatures.get(signature) || 0;
+    if (pending <= 1) {
+      ownWriteSignatures.delete(signature);
+    } else {
+      ownWriteSignatures.set(signature, pending - 1);
+    }
+    throw err;
+  }
+}
+function syncWithStoredArticles(storedArticles) {
+  const currentById = new Map(allArticles.map(a => [a.id, a]));
+  const merged = storedArticles.map(a => currentById.get(a.id) || a);
+  const changed = merged.length !== allArticles.length || merged.some((a, i) => a !== allArticles[i]);
+  allArticles = merged;
+  if (changed) {
+    const storedIds = new Set(merged.map(a => a.id));
+    selectedArticleIds.forEach(id => {
+      if (!storedIds.has(id)) selectedArticleIds.delete(id);
+    });
+  }
+  return changed;
+}
+async function persistMergedArticles() {
+  const result = await chrome.storage.local.get(['savedArticles']);
+  syncWithStoredArticles(result.savedArticles || []);
+  await writeSavedArticles(allArticles);
+}
+function setupStorageSync() {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes.savedArticles) return;
+    const storedArticles = changes.savedArticles.newValue || [];
+    const signature = getArticleIdSignature(storedArticles);
+    const pending = ownWriteSignatures.get(signature);
+    if (pending) {
+      if (pending <= 1) {
+        ownWriteSignatures.delete(signature);
+      } else {
+        ownWriteSignatures.set(signature, pending - 1);
+      }
+      return;
+    }
+    if (!syncWithStoredArticles(storedArticles)) return;
+    calculateStatistics();
+    updateFilterValueOptions();
+    applyFilters({ keepRendered: true });
+  });
+}
 async function loadArticles() {
   const result = await chrome.storage.local.get(['savedArticles']);
   allArticles = result.savedArticles || [];
@@ -176,6 +244,9 @@ function setupEventListeners() {
   selectAllCheckbox.addEventListener('change', (e) => {
     toggleSelectAll(e.target.checked);
   });
+  const articlesContainer = document.getElementById('articlesContainer');
+  articlesContainer.addEventListener('click', handleArticleListClick);
+  articlesContainer.addEventListener('change', handleArticleListChange);
   document.getElementById('exportBtn').addEventListener('click', exportAllEmbedCodes);
   document.getElementById('exportFeaturedBtn').addEventListener('click', exportFeaturedData);
   document.getElementById('exportFullBtn').addEventListener('click', exportFullData);
@@ -405,21 +476,26 @@ function updateFilterValueOptions() {
     container.style.display = 'none';
   }
 }
-function applyFilters() {
+function getArticleSearchText(article) {
+  let text = searchTextCache.get(article);
+  if (text === undefined) {
+    const postPath = (article.postLink || '').replace(/^https?:\/\/[^/]+/i, '');
+    text = [article.content, article.author, ...(article.tags || []), postPath]
+      .map(value => value || '')
+      .join('\n')
+      .toLowerCase();
+    searchTextCache.set(article, text);
+  }
+  return text;
+}
+function applyFilters({ keepRendered = false } = {}) {
   const searchTerm = document.getElementById('searchInput').value.trim().toLowerCase();
   filteredArticles = allArticles.filter(article => {
     if (!matchesFilter(article)) return false;
-    if (searchTerm) {
-      const contentMatch = (article.content || '').toLowerCase().includes(searchTerm);
-      const authorMatch = (article.author || '').toLowerCase().includes(searchTerm);
-      const tagsMatch = (article.tags || []).some(tag => (tag || '').toLowerCase().includes(searchTerm));
-      const embedMatch = (article.embedCode || '').toLowerCase().includes(searchTerm);
-      return contentMatch || authorMatch || tagsMatch || embedMatch;
-    }
-    return true;
+    return !searchTerm || getArticleSearchText(article).includes(searchTerm);
   });
   sortArticles();
-  renderArticles();
+  renderArticles({ keepRendered });
   renderTagsCloud();
   renderAuthorsCloud();
 }
@@ -451,43 +527,38 @@ function matchesFilter(article) {
       return true;
   }
 }
+function getArticleSortKey(article, field) {
+  const parseDate = (dStr) => {
+    if (!dStr) return 0;
+    const parsed = new Date(dStr).getTime();
+    return isNaN(parsed) ? 0 : parsed;
+  };
+  switch (field) {
+    case 'timestamp':
+      return parseDate(article.timestamp);
+    case 'author':
+      return (article.author || '').toLowerCase();
+    default:
+      return parseDate(article.savedAt);
+  }
+}
 function sortArticles() {
   const [field, order] = currentSort.split('-');
-  filteredArticles.sort((a, b) => {
-    let valA, valB;
-    const parseDate = (dStr) => {
-      if (!dStr) return 0;
-      const parsed = new Date(dStr).getTime();
-      return isNaN(parsed) ? 0 : parsed;
-    };
-    switch (field) {
-      case 'savedAt':
-        valA = parseDate(a.savedAt);
-        valB = parseDate(b.savedAt);
-        break;
-      case 'timestamp':
-        valA = parseDate(a.timestamp);
-        valB = parseDate(b.timestamp);
-        break;
-      case 'author':
-        valA = (a.author || '').toLowerCase();
-        valB = (b.author || '').toLowerCase();
-        break;
-      default:
-        valA = parseDate(a.savedAt);
-        valB = parseDate(b.savedAt);
-    }
-    if (typeof valA === 'string' && typeof valB === 'string') {
-      const cmp = valA.localeCompare(valB, 'zh-TW');
-      return order === 'asc' ? cmp : -cmp;
-    }
-    return order === 'asc' ? valA - valB : valB - valA;
+  const direction = order === 'asc' ? 1 : -1;
+  const keyed = filteredArticles.map(article => ({ article, key: getArticleSortKey(article, field) }));
+  keyed.sort((a, b) => {
+    const cmp = typeof a.key === 'string' ? sortCollator.compare(a.key, b.key) : a.key - b.key;
+    return direction * cmp;
   });
+  filteredArticles = keyed.map(entry => entry.article);
 }
-function renderArticles() {
+function renderArticles({ keepRendered = false } = {}) {
   const container = document.getElementById('articlesContainer');
   if (!container) return;
+  if (loadMoreObserver) loadMoreObserver.disconnect();
   container.innerHTML = '';
+  const targetCount = keepRendered ? Math.max(renderedCount, RENDER_BATCH_SIZE) : RENDER_BATCH_SIZE;
+  renderedCount = 0;
   if (filteredArticles.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'empty-state';
@@ -500,163 +571,251 @@ function renderArticles() {
     updateSelectionUI();
     return;
   }
-  filteredArticles.forEach(article => {
-    const card = document.createElement('div');
-    card.className = 'article-card';
-    if (selectedArticleIds.has(article.id)) {
-      card.classList.add('selected');
-    }
-    card.dataset.id = article.id;
-    const chkLabel = document.createElement('label');
-    chkLabel.className = 'checkbox-container card-checkbox';
-    const chkInput = document.createElement('input');
-    chkInput.type = 'checkbox';
-    chkInput.className = 'article-checkbox';
-    chkInput.checked = selectedArticleIds.has(article.id);
-    chkInput.dataset.articleId = article.id;
-    const chkMark = document.createElement('span');
-    chkMark.className = 'checkmark';
-    chkLabel.appendChild(chkInput);
-    chkLabel.appendChild(chkMark);
-    card.appendChild(chkLabel);
-    const wrapper = document.createElement('div');
-    wrapper.className = 'card-content-wrapper';
-    const header = document.createElement('div');
-    header.className = 'card-header';
-    const authorEl = document.createElement('span');
-    authorEl.className = 'author';
-    authorEl.textContent = article.author || '未填寫作者';
-    const timeInfo = document.createElement('div');
-    timeInfo.className = 'time-info';
-    const timePost = document.createElement('div');
-    timePost.title = article.timestampTitle || article.timestamp || '';
-    timePost.textContent = '發文：' + (article.timestampTitle ? article.timestampTitle : formatTime(article.timestamp));
-    const timeSaved = document.createElement('div');
-    timeSaved.title = article.savedAt || '';
-    timeSaved.textContent = '儲存：' + formatTime(article.savedAt);
-    timeInfo.appendChild(timePost);
-    timeInfo.appendChild(timeSaved);
-    header.appendChild(authorEl);
-    header.appendChild(timeInfo);
-    wrapper.appendChild(header);
-    const bodyEl = document.createElement('div');
-    bodyEl.className = 'card-body';
-    const rawContent = article.content || '';
-    if (rawContent.length > 150) {
-      const shortText = rawContent.substring(0, 150);
-      const spanText = document.createElement('span');
-      spanText.className = 'text-chunk';
-      spanText.textContent = shortText + '...';
-      bodyEl.appendChild(spanText);
-      const expandBtn = document.createElement('button');
-      expandBtn.type = 'button';
-      expandBtn.className = 'expand-text-btn';
-      expandBtn.textContent = '展開';
-      expandBtn.setAttribute('aria-expanded', 'false');
-      let isExpanded = false;
-      expandBtn.addEventListener('click', () => {
-        isExpanded = !isExpanded;
-        spanText.textContent = isExpanded ? rawContent : shortText + '...';
-        expandBtn.textContent = isExpanded ? '收起' : '展開';
-        expandBtn.setAttribute('aria-expanded', String(isExpanded));
-      });
-      bodyEl.appendChild(expandBtn);
-    } else {
-      bodyEl.textContent = rawContent || '無內文說明';
-    }
-    wrapper.appendChild(bodyEl);
-    if (isExpiredArticle(article)) {
-      const badge = document.createElement('div');
-      badge.className = 'status-badge expired';
-      badge.textContent = `已失效 (${article.expiredReason || '無法解析'})`;
-      wrapper.appendChild(badge);
-    }
-    if (article.tags && article.tags.length > 0) {
-      const tagsContainer = document.createElement('div');
-      tagsContainer.className = 'card-tags';
-      article.tags.forEach(tag => {
-        const tagEl = document.createElement('button');
-        tagEl.type = 'button';
-        tagEl.className = 'card-tag';
-        tagEl.textContent = '#' + tag;
-        tagEl.setAttribute('aria-label', `依標籤「${tag}」篩選`);
-        tagEl.addEventListener('click', (e) => {
-          e.stopPropagation();
-          currentFilter = 'tag';
-          currentFilterValue = tag;
-          document.getElementById('filterSelect').value = 'tag';
-          updateFilterValueOptions();
-          const filterValSelect = document.getElementById('filterValueSelect');
-          if (filterValSelect) filterValSelect.value = tag;
-          applyFilters();
-        });
-        tagsContainer.appendChild(tagEl);
-      });
-      wrapper.appendChild(tagsContainer);
-    }
-    const actions = document.createElement('div');
-    actions.className = 'card-actions';
-    const previewBtn = document.createElement('button');
-    previewBtn.className = 'card-action-btn preview-btn';
-    previewBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-      即時預覽
-    `;
-    previewBtn.addEventListener('click', () => {
-      openPreviewModal(article.id);
-    });
-    actions.appendChild(previewBtn);
-    const viewBtn = document.createElement('a');
-    viewBtn.className = 'card-action-btn primary';
-    viewBtn.href = sanitizeUrl(article.postLink || '#');
-    viewBtn.target = '_blank';
-    viewBtn.rel = 'noopener noreferrer';
-    viewBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-      查看原文
-    `;
-    actions.appendChild(viewBtn);
-    if (article.embedCode) {
-      const copyEmbedBtn = document.createElement('button');
-      copyEmbedBtn.className = 'card-action-btn';
-      copyEmbedBtn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        複製內嵌代碼
-      `;
-      copyEmbedBtn.addEventListener('click', () => {
-        copyTextToClipboard(article.embedCode, '內嵌代碼已複製');
-      });
-      actions.appendChild(copyEmbedBtn);
-    }
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'card-action-btn danger';
-    deleteBtn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-      刪除
-    `;
-    deleteBtn.addEventListener('click', () => {
-      deleteArticle(article.id);
-    });
-    actions.appendChild(deleteBtn);
-    wrapper.appendChild(actions);
-    card.appendChild(wrapper);
-    container.appendChild(card);
-  });
-  container.querySelectorAll('.article-checkbox').forEach(chk => {
-    chk.addEventListener('change', (e) => {
-      const id = e.target.dataset.articleId;
-      const card = e.target.closest('.article-card');
-      if (e.target.checked) {
-        selectedArticleIds.add(id);
-        card.classList.add('selected');
-      } else {
-        selectedArticleIds.delete(id);
-        card.classList.remove('selected');
-      }
-      updateSelectionUI();
-    });
-  });
+  appendArticleCards(container, targetCount);
   updateSelectionUI();
+}
+function appendArticleCards(container, count) {
+  const previousButton = container.querySelector('.load-more-btn');
+  if (previousButton) previousButton.remove();
+  const fragment = document.createDocumentFragment();
+  const end = Math.min(filteredArticles.length, renderedCount + count);
+  let firstNewCard = null;
+  for (let i = renderedCount; i < end; i++) {
+    const card = createArticleCard(filteredArticles[i]);
+    if (!firstNewCard) firstNewCard = card;
+    fragment.appendChild(card);
+  }
+  renderedCount = end;
+  let loadMoreBtn = null;
+  if (renderedCount < filteredArticles.length) {
+    loadMoreBtn = document.createElement('button');
+    loadMoreBtn.type = 'button';
+    loadMoreBtn.className = 'btn load-more-btn';
+    loadMoreBtn.dataset.action = 'load-more';
+    loadMoreBtn.textContent = `顯示更多（還有 ${filteredArticles.length - renderedCount} 篇）`;
+    fragment.appendChild(loadMoreBtn);
+  }
+  container.appendChild(fragment);
+  if (loadMoreObserver) loadMoreObserver.disconnect();
+  if (loadMoreBtn) {
+    if (!loadMoreObserver) {
+      loadMoreObserver = new IntersectionObserver((entries) => {
+        if (entries.some(entry => entry.isIntersecting)) renderMoreArticles();
+      }, { rootMargin: LOAD_MORE_ROOT_MARGIN });
+    }
+    loadMoreObserver.observe(loadMoreBtn);
+  }
+  return firstNewCard;
+}
+function renderMoreArticles() {
+  const container = document.getElementById('articlesContainer');
+  if (!container) return null;
+  return appendArticleCards(container, RENDER_BATCH_SIZE);
+}
+function refreshRenderedCard(article) {
+  const container = document.getElementById('articlesContainer');
+  const card = container ? container.querySelector(`.article-card[data-id="${CSS.escape(article.id)}"]`) : null;
+  if (card) card.replaceWith(createArticleCard(article));
+}
+function findArticleById(articleId) {
+  return allArticles.find(a => a.id === articleId) || null;
+}
+const CARD_ICON_MARKUP = {
+  preview: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  view: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+  copy: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  delete: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+};
+const cardIconCache = new Map();
+function cloneCardIcon(name) {
+  let icon = cardIconCache.get(name);
+  if (!icon) {
+    const template = document.createElement('template');
+    template.innerHTML = CARD_ICON_MARKUP[name];
+    icon = template.content.firstElementChild;
+    cardIconCache.set(name, icon);
+  }
+  return icon.cloneNode(true);
+}
+function createArticleCard(article) {
+  const card = document.createElement('div');
+  card.className = 'article-card';
+  if (selectedArticleIds.has(article.id)) {
+    card.classList.add('selected');
+  }
+  card.dataset.id = article.id;
+  const chkLabel = document.createElement('label');
+  chkLabel.className = 'checkbox-container card-checkbox';
+  const chkInput = document.createElement('input');
+  chkInput.type = 'checkbox';
+  chkInput.className = 'article-checkbox';
+  chkInput.checked = selectedArticleIds.has(article.id);
+  chkInput.dataset.articleId = article.id;
+  const chkMark = document.createElement('span');
+  chkMark.className = 'checkmark';
+  chkLabel.appendChild(chkInput);
+  chkLabel.appendChild(chkMark);
+  card.appendChild(chkLabel);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'card-content-wrapper';
+  const header = document.createElement('div');
+  header.className = 'card-header';
+  const authorEl = document.createElement('span');
+  authorEl.className = 'author';
+  authorEl.textContent = article.author || '未填寫作者';
+  const timeInfo = document.createElement('div');
+  timeInfo.className = 'time-info';
+  const timePost = document.createElement('div');
+  timePost.title = article.timestampTitle || article.timestamp || '';
+  timePost.textContent = '發文：' + (article.timestampTitle ? article.timestampTitle : formatTime(article.timestamp));
+  const timeSaved = document.createElement('div');
+  timeSaved.title = article.savedAt || '';
+  timeSaved.textContent = '儲存：' + formatTime(article.savedAt);
+  timeInfo.appendChild(timePost);
+  timeInfo.appendChild(timeSaved);
+  header.appendChild(authorEl);
+  header.appendChild(timeInfo);
+  wrapper.appendChild(header);
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'card-body';
+  const rawContent = article.content || '';
+  if (rawContent.length > CARD_PREVIEW_LENGTH) {
+    const spanText = document.createElement('span');
+    spanText.className = 'text-chunk';
+    spanText.textContent = rawContent.substring(0, CARD_PREVIEW_LENGTH) + '...';
+    bodyEl.appendChild(spanText);
+    const expandBtn = document.createElement('button');
+    expandBtn.type = 'button';
+    expandBtn.className = 'expand-text-btn';
+    expandBtn.dataset.action = 'toggle-expand';
+    expandBtn.textContent = '展開';
+    expandBtn.setAttribute('aria-expanded', 'false');
+    bodyEl.appendChild(expandBtn);
+  } else {
+    bodyEl.textContent = rawContent || '無內文說明';
+  }
+  wrapper.appendChild(bodyEl);
+  if (isExpiredArticle(article)) {
+    const badge = document.createElement('div');
+    badge.className = 'status-badge expired';
+    badge.textContent = `已失效 (${article.expiredReason || '無法解析'})`;
+    wrapper.appendChild(badge);
+  }
+  if (article.tags && article.tags.length > 0) {
+    const tagsContainer = document.createElement('div');
+    tagsContainer.className = 'card-tags';
+    article.tags.forEach(tag => {
+      const tagEl = document.createElement('button');
+      tagEl.type = 'button';
+      tagEl.className = 'card-tag';
+      tagEl.dataset.action = 'filter-tag';
+      tagEl.dataset.tag = tag;
+      tagEl.textContent = '#' + tag;
+      tagEl.setAttribute('aria-label', `依標籤「${tag}」篩選`);
+      tagsContainer.appendChild(tagEl);
+    });
+    wrapper.appendChild(tagsContainer);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'card-actions';
+  const previewBtn = document.createElement('button');
+  previewBtn.className = 'card-action-btn preview-btn';
+  previewBtn.dataset.action = 'preview';
+  previewBtn.append(cloneCardIcon('preview'), '即時預覽');
+  actions.appendChild(previewBtn);
+  const viewBtn = document.createElement('a');
+  viewBtn.className = 'card-action-btn primary';
+  viewBtn.href = sanitizeUrl(article.postLink || '#');
+  viewBtn.target = '_blank';
+  viewBtn.rel = 'noopener noreferrer';
+  viewBtn.append(cloneCardIcon('view'), '查看原文');
+  actions.appendChild(viewBtn);
+  if (article.embedCode) {
+    const copyEmbedBtn = document.createElement('button');
+    copyEmbedBtn.className = 'card-action-btn';
+    copyEmbedBtn.dataset.action = 'copy-embed';
+    copyEmbedBtn.append(cloneCardIcon('copy'), '複製內嵌代碼');
+    actions.appendChild(copyEmbedBtn);
+  }
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'card-action-btn danger';
+  deleteBtn.dataset.action = 'delete';
+  deleteBtn.append(cloneCardIcon('delete'), '刪除');
+  actions.appendChild(deleteBtn);
+  wrapper.appendChild(actions);
+  card.appendChild(wrapper);
+  return card;
+}
+function handleArticleListClick(e) {
+  const actionEl = e.target.closest('[data-action]');
+  if (!actionEl || !e.currentTarget.contains(actionEl)) return;
+  const card = actionEl.closest('.article-card');
+  const articleId = card ? card.dataset.id : '';
+  switch (actionEl.dataset.action) {
+    case 'load-more': {
+      const firstNewCard = renderMoreArticles();
+      const firstFocusable = firstNewCard ? firstNewCard.querySelector('input, button, a') : null;
+      if (firstFocusable) firstFocusable.focus();
+      break;
+    }
+    case 'toggle-expand': {
+      const article = findArticleById(articleId);
+      const spanText = actionEl.previousElementSibling;
+      if (!article || !spanText) return;
+      const rawContent = article.content || '';
+      const isExpanded = actionEl.getAttribute('aria-expanded') !== 'true';
+      spanText.textContent = isExpanded ? rawContent : rawContent.substring(0, CARD_PREVIEW_LENGTH) + '...';
+      actionEl.textContent = isExpanded ? '收起' : '展開';
+      actionEl.setAttribute('aria-expanded', String(isExpanded));
+      break;
+    }
+    case 'filter-tag': {
+      const tag = actionEl.dataset.tag;
+      currentFilter = 'tag';
+      currentFilterValue = tag;
+      document.getElementById('filterSelect').value = 'tag';
+      updateFilterValueOptions();
+      const filterValSelect = document.getElementById('filterValueSelect');
+      if (filterValSelect) filterValSelect.value = tag;
+      applyFilters();
+      break;
+    }
+    case 'preview':
+      openPreviewModal(articleId);
+      break;
+    case 'copy-embed': {
+      const article = findArticleById(articleId);
+      if (article && article.embedCode) {
+        copyTextToClipboard(article.embedCode, '內嵌代碼已複製');
+      }
+      break;
+    }
+    case 'delete':
+      deleteArticle(articleId);
+      break;
+  }
+}
+function handleArticleListChange(e) {
+  const chk = e.target;
+  if (!chk.classList.contains('article-checkbox')) return;
+  const id = chk.dataset.articleId;
+  const card = chk.closest('.article-card');
+  if (chk.checked) {
+    selectedArticleIds.add(id);
+    card.classList.add('selected');
+  } else {
+    selectedArticleIds.delete(id);
+    card.classList.remove('selected');
+  }
+  updateSelectionUI();
+}
+function syncRenderedSelection() {
+  document.querySelectorAll('#articlesContainer .article-card').forEach(card => {
+    const isSelected = selectedArticleIds.has(card.dataset.id);
+    card.classList.toggle('selected', isSelected);
+    const chk = card.querySelector('.article-checkbox');
+    if (chk) chk.checked = isSelected;
+  });
 }
 function updateSelectionUI() {
   const selectAll = document.getElementById('selectAllCheckbox');
@@ -683,7 +842,8 @@ function toggleSelectAll(checked) {
   } else {
     filteredArticles.forEach(a => selectedArticleIds.delete(a.id));
   }
-  renderArticles();
+  syncRenderedSelection();
+  updateSelectionUI();
 }
 async function copyTextToClipboard(text, successMessage) {
   try {
@@ -741,9 +901,11 @@ function showUndoToast(message, onUndo, duration = 8000) {
   const timer = setTimeout(dismiss, duration);
 }
 async function restoreArticles(snapshot, message) {
-  allArticles = snapshot;
-  await chrome.storage.local.set({ savedArticles: allArticles });
-  applyFilters();
+  const snapshotIds = new Set(snapshot.map(a => a.id));
+  const addedSinceSnapshot = allArticles.filter(a => !snapshotIds.has(a.id));
+  allArticles = [...addedSinceSnapshot, ...snapshot];
+  await writeSavedArticles(allArticles);
+  applyFilters({ keepRendered: true });
   calculateStatistics();
   showToast(message);
 }
@@ -818,9 +980,9 @@ async function deleteArticle(articleId) {
   if (!confirmed) return;
   const snapshot = [...allArticles];
   allArticles = allArticles.filter(a => a.id !== articleId);
-  await chrome.storage.local.set({ savedArticles: allArticles });
+  await writeSavedArticles(allArticles);
   selectedArticleIds.delete(articleId);
-  applyFilters();
+  applyFilters({ keepRendered: true });
   calculateStatistics();
   showUndoToast('已刪除 1 篇貼文', () => restoreArticles(snapshot, '已復原貼文'));
 }
@@ -835,9 +997,9 @@ async function batchDeleteArticles() {
   if (!confirmed) return;
   const snapshot = [...allArticles];
   allArticles = allArticles.filter(a => !selectedArticleIds.has(a.id));
-  await chrome.storage.local.set({ savedArticles: allArticles });
+  await writeSavedArticles(allArticles);
   selectedArticleIds.clear();
-  applyFilters();
+  applyFilters({ keepRendered: true });
   calculateStatistics();
   showUndoToast(`已批次刪除 ${count} 篇貼文`, () => restoreArticles(snapshot, `已復原 ${count} 篇貼文`));
 }
@@ -856,7 +1018,7 @@ async function clearAllArticles() {
   allArticles = [];
   filteredArticles = [];
   selectedArticleIds.clear();
-  await chrome.storage.local.set({ savedArticles: [] });
+  await writeSavedArticles(allArticles);
   applyFilters();
   calculateStatistics();
   showUndoToast(`已清除 ${snapshot.length} 篇貼文`, () => restoreArticles(snapshot, '已復原全部貼文'));
@@ -947,11 +1109,29 @@ async function updateAllTimestamps() {
       workerTab = null;
     }
   }
+  let pendingPersistCount = 0;
+  let persistFailed = false;
+  async function flushPendingUpdates() {
+    if (pendingPersistCount === 0 || persistFailed) return;
+    try {
+      await persistMergedArticles();
+      pendingPersistCount = 0;
+    } catch (err) {
+      persistFailed = true;
+      cancelUpdateRequested = true;
+      console.error('[Dashboard] 寫入更新結果失敗:', err);
+      showToast('寫入更新結果失敗：' + (err.message || '請稍後再試'), { type: 'error' });
+    }
+  }
+  let wasCancelled = false;
   try {
     for (const article of articlesNeedingUpdate) {
       if (cancelUpdateRequested) {
         console.log('[Dashboard] 使用者取消批次更新');
         break;
+      }
+      if (isUpdatePaused) {
+        await flushPendingUpdates();
       }
       while (isUpdatePaused && !cancelUpdateRequested) {
         await new Promise(resolve => setTimeout(resolve, 150));
@@ -1006,18 +1186,21 @@ async function updateAllTimestamps() {
         await closeWorkerTab();
         failCount++;
       }
-      await chrome.storage.local.set({ savedArticles: allArticles });
+      searchTextCache.delete(article);
+      pendingPersistCount++;
+      if (pendingPersistCount >= UPDATE_PERSIST_BATCH_SIZE) {
+        await flushPendingUpdates();
+      }
       calculateStatistics();
-      renderTagsCloud();
-      renderAuthorsCloud();
-      updateFilterValueOptions();
-      applyFilters();
+      refreshRenderedCard(article);
       if (activeProgressToast) {
         activeProgressToast.update(`更新進度: ${currentIndex}/${articlesNeedingUpdate.length} (成功: ${successCount}, 失敗: ${failCount})`);
       }
     }
   } finally {
     await closeWorkerTab();
+    await flushPendingUpdates();
+    wasCancelled = cancelUpdateRequested;
     isUpdatingTimestamps = false;
     isUpdatePaused = false;
     cancelUpdateRequested = false;
@@ -1026,11 +1209,9 @@ async function updateAllTimestamps() {
     if (updatingStatItem) updatingStatItem.classList.add('is-hidden');
     selectedArticleIds.clear();
     calculateStatistics();
-    renderTagsCloud();
-    renderAuthorsCloud();
     updateFilterValueOptions();
-    applyFilters();
-    if (currentIndex < articlesNeedingUpdate.length && cancelUpdateRequested) {
+    applyFilters({ keepRendered: true });
+    if (currentIndex < articlesNeedingUpdate.length && wasCancelled) {
       const msg = `更新已中途停止！已處理: ${currentIndex}/${articlesNeedingUpdate.length} (成功: ${successCount}, 失敗/失效: ${failCount})`;
       if (activeProgressToast) {
         activeProgressToast.finish(msg);
@@ -1049,6 +1230,20 @@ async function updateAllTimestamps() {
   }
 }
 async function fetchPostInfoWithReusableTab(tabId, postLink) {
+  let timeoutId = null;
+  const timeout = new Promise((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn('[Dashboard] 擷取超過安全上限，本篇記為失敗:', postLink);
+      resolve(null);
+    }, POST_FETCH_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([fetchPostInfoFromTab(tabId, postLink), timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+async function fetchPostInfoFromTab(tabId, postLink) {
   try {
     const safeUrl = sanitizeUrl(postLink);
     if (safeUrl === '#') return null;
@@ -1074,7 +1269,7 @@ async function fetchPostInfoWithReusableTab(tabId, postLink) {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tabId },
       func: extractPostInfoFromPage,
-      args: [safeUrl]
+      args: [safeUrl, POST_INFO_CHECK_INTERVAL_MS]
     });
     if (results && results[0] && results[0].result) {
       return results[0].result;
@@ -1112,7 +1307,7 @@ function waitForTabNavigation(tabId) {
     chrome.tabs.onRemoved.addListener(removeListener);
   });
 }
-async function extractPostInfoFromPage(requestedPostLink = '') {
+async function extractPostInfoFromPage(requestedPostLink, checkIntervalMs) {
   function createExpiredPostResult(reason) {
     return {
       status: 'expired',
@@ -1417,11 +1612,30 @@ async function extractPostInfoFromPage(requestedPostLink = '') {
       return false;
     };
     if (check()) return;
-    const interval = setInterval(() => {
-      if (check()) {
-        clearInterval(interval);
+    let lastCheckAt = performance.now();
+    let trailingTimer = null;
+    let observer = null;
+    const runCheck = () => {
+      clearTimeout(trailingTimer);
+      trailingTimer = null;
+      lastCheckAt = performance.now();
+      if (check()) observer.disconnect();
+    };
+    observer = new MutationObserver(() => {
+      const elapsed = performance.now() - lastCheckAt;
+      if (elapsed >= checkIntervalMs) {
+        runCheck();
+      } else if (!trailingTimer) {
+        trailingTimer = setTimeout(runCheck, checkIntervalMs - elapsed);
       }
-    }, 80);
+    });
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['datetime', 'content']
+    });
   });
 }
 function buildThreadsEmbedCode(postLink) {
@@ -1641,7 +1855,7 @@ async function handleImportFile(event) {
       allArticles = importedArticles;
       showToast(`已匯入 ${importedArticles.length} 筆資料（取代原有資料）`);
     }
-    await chrome.storage.local.set({ savedArticles: allArticles });
+    await writeSavedArticles(allArticles);
     applyFilters();
     calculateStatistics();
   } catch (err) {

@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Threads 程式碼儲存器",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "一鍵儲存 Threads 貼文的官方內嵌代碼與中繼資料，支援本機管理、即時預覽、批次更新與多格式匯出",
   "permissions": [
     "storage",
+    "unlimitedStorage",
     "tabs",
     "scripting"
   ],
@@ -40,6 +41,9 @@
   },
   "options_page": "dashboard.html",
   "icons": {
-    "128": "favicon.png"
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
   }
 }

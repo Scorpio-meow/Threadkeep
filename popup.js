@@ -1,4 +1,6 @@
 const SEARCH_DEBOUNCE_MS = 180;
+const RENDER_BATCH_SIZE = 30;
+const LOAD_MORE_ROOT_MARGIN = '300px';
 let searchDebounceTimer = null;
 let allArticles = [];
 let filteredArticles = [];
@@ -6,6 +8,65 @@ let currentSort = 'savedAt-desc';
 let selectedArticleIds = new Set();
 let currentFilter = 'all';
 let currentFilterValue = '';
+let renderedCount = 0;
+let loadMoreObserver = null;
+const searchTextCache = new WeakMap();
+const sortCollator = new Intl.Collator('zh-TW');
+const ownWriteSignatures = new Map();
+function getArticleIdSignature(articles) {
+  return articles.map(a => a.id).join('\n');
+}
+async function writeSavedArticles(articles) {
+  const signature = getArticleIdSignature(articles);
+  ownWriteSignatures.set(signature, (ownWriteSignatures.get(signature) || 0) + 1);
+  try {
+    await chrome.storage.local.set({ savedArticles: articles });
+  } catch (err) {
+    const pending = ownWriteSignatures.get(signature) || 0;
+    if (pending <= 1) {
+      ownWriteSignatures.delete(signature);
+    } else {
+      ownWriteSignatures.set(signature, pending - 1);
+    }
+    throw err;
+  }
+}
+function syncWithStoredArticles(storedArticles) {
+  const currentById = new Map(allArticles.map(a => [a.id, a]));
+  const merged = storedArticles.map(a => currentById.get(a.id) || a);
+  const changed = merged.length !== allArticles.length || merged.some((a, i) => a !== allArticles[i]);
+  allArticles = merged;
+  if (changed) {
+    const storedIds = new Set(merged.map(a => a.id));
+    selectedArticleIds.forEach(id => {
+      if (!storedIds.has(id)) selectedArticleIds.delete(id);
+    });
+  }
+  return changed;
+}
+function mergeSnapshotWithCurrent(snapshot) {
+  const snapshotIds = new Set(snapshot.map(a => a.id));
+  return [...allArticles.filter(a => !snapshotIds.has(a.id)), ...snapshot];
+}
+function setupStorageSync() {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes.savedArticles) return;
+    const storedArticles = changes.savedArticles.newValue || [];
+    const signature = getArticleIdSignature(storedArticles);
+    const pending = ownWriteSignatures.get(signature);
+    if (pending) {
+      if (pending <= 1) {
+        ownWriteSignatures.delete(signature);
+      } else {
+        ownWriteSignatures.set(signature, pending - 1);
+      }
+      return;
+    }
+    if (!syncWithStoredArticles(storedArticles)) return;
+    updateFilterValueOptions();
+    applyFilters({ keepRendered: true });
+  });
+}
 function sanitizeUrl(rawUrl, base = 'https://www.threads.com') {
   if (!rawUrl || typeof rawUrl !== 'string') return '#';
   try {
@@ -25,6 +86,7 @@ if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', async () => {
     await loadArticles();
     setupEventListeners();
+    setupStorageSync();
   });
 }
 async function loadArticles() {
@@ -104,7 +166,7 @@ function setupEventListeners() {
           return;
         }
         savedArticles = [...savedArticles, ...newArticles];
-        await chrome.storage.local.set({ savedArticles });
+        await writeSavedArticles(savedArticles);
         allArticles = savedArticles;
         filteredArticles = [...allArticles];
         sortArticles();
@@ -112,7 +174,7 @@ function setupEventListeners() {
         showToast(`已匯入 ${newArticles.length} 筆新資料（跳過 ${imported.length - newArticles.length} 筆重複）`);
       } else {
         savedArticles = imported;
-        await chrome.storage.local.set({ savedArticles });
+        await writeSavedArticles(savedArticles);
         allArticles = savedArticles;
         filteredArticles = [...allArticles];
         sortArticles();
@@ -144,25 +206,33 @@ function setupEventListeners() {
   if (clearSelectionBtn) {
     clearSelectionBtn.addEventListener('click', clearSelection);
   }
+  const articlesContainer = document.getElementById('articlesContainer');
+  articlesContainer.addEventListener('click', handleArticleListClick);
+  articlesContainer.addEventListener('change', handleArticleListChange);
   updateFilterValueOptions();
 }
-function applyFilters() {
+function getArticleSearchText(article) {
+  let text = searchTextCache.get(article);
+  if (text === undefined) {
+    const postPath = (article.postLink || '').replace(/^https?:\/\/[^/]+/i, '');
+    text = [article.content, article.author, ...(article.tags || []), postPath]
+      .map(value => value || '')
+      .join('\n')
+      .toLowerCase();
+    searchTextCache.set(article, text);
+  }
+  return text;
+}
+function applyFilters({ keepRendered = false } = {}) {
   const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
   filteredArticles = allArticles.filter(article => {
     if (!matchesFilter(article)) {
       return false;
     }
-    if (searchTerm) {
-      const contentMatch = (article.content || '').toLowerCase().includes(searchTerm);
-      const authorMatch = (article.author || '').toLowerCase().includes(searchTerm);
-      const tagsMatch = (article.tags || []).some(tag => (tag || '').toLowerCase().includes(searchTerm));
-      const embedMatch = (article.embedCode || '').toLowerCase().includes(searchTerm);
-      return contentMatch || authorMatch || tagsMatch || embedMatch;
-    }
-    return true;
+    return !searchTerm || getArticleSearchText(article).includes(searchTerm);
   });
   sortArticles();
-  renderArticles();
+  renderArticles({ keepRendered });
 }
 function matchesFilter(article) {
   switch (currentFilter) {
@@ -223,47 +293,38 @@ function updateFilterValueOptions() {
     filterValueContainer.style.display = 'none';
   }
 }
+function getArticleSortKey(article, field) {
+  const parseDate = (dateStr) => {
+    if (!dateStr) return 0;
+    const parsed = new Date(dateStr).getTime();
+    return isNaN(parsed) ? 0 : parsed;
+  };
+  switch (field) {
+    case 'timestamp':
+      return parseDate(article.timestamp);
+    case 'author':
+      return (article.author || '').toLowerCase();
+    default:
+      return parseDate(article.savedAt);
+  }
+}
 function sortArticles() {
   const [field, order] = currentSort.split('-');
-  filteredArticles.sort((a, b) => {
-    let valueA, valueB;
-    const parseDate = (dateStr) => {
-      if (!dateStr) return 0;
-      const parsed = new Date(dateStr).getTime();
-      return isNaN(parsed) ? 0 : parsed;
-    };
-    switch (field) {
-      case 'savedAt':
-        valueA = parseDate(a.savedAt);
-        valueB = parseDate(b.savedAt);
-        break;
-      case 'timestamp':
-        valueA = parseDate(a.timestamp);
-        valueB = parseDate(b.timestamp);
-        break;
-      case 'author':
-        valueA = (a.author || '').toLowerCase();
-        valueB = (b.author || '').toLowerCase();
-        break;
-      default:
-        valueA = parseDate(a.savedAt);
-        valueB = parseDate(b.savedAt);
-    }
-    if (typeof valueA === 'string' && typeof valueB === 'string') {
-      const comparison = valueA.localeCompare(valueB, 'zh-TW');
-      return order === 'asc' ? comparison : -comparison;
-    }
-    if (order === 'asc') {
-      return valueA - valueB;
-    } else {
-      return valueB - valueA;
-    }
+  const direction = order === 'asc' ? 1 : -1;
+  const keyed = filteredArticles.map(article => ({ article, key: getArticleSortKey(article, field) }));
+  keyed.sort((a, b) => {
+    const comparison = typeof a.key === 'string' ? sortCollator.compare(a.key, b.key) : a.key - b.key;
+    return direction * comparison;
   });
+  filteredArticles = keyed.map(entry => entry.article);
 }
-function renderArticles() {
+function renderArticles({ keepRendered = false } = {}) {
   const container = document.getElementById('articlesContainer');
   const countElement = document.getElementById('articleCount');
   countElement.textContent = `${filteredArticles.length} 篇`;
+  if (loadMoreObserver) loadMoreObserver.disconnect();
+  const targetCount = keepRendered ? Math.max(renderedCount, RENDER_BATCH_SIZE) : RENDER_BATCH_SIZE;
+  renderedCount = 0;
   if (filteredArticles.length === 0) {
     container.innerHTML = '';
     const empty = document.createElement('div');
@@ -286,116 +347,171 @@ function renderArticles() {
     return;
   }
   container.innerHTML = '';
-  filteredArticles.forEach(article => {
-    const card = document.createElement('div');
-    card.className = 'article-card';
-    if (selectedArticleIds.has(article.id)) {
-      card.classList.add('selected');
-    }
-    card.dataset.id = article.id;
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.className = 'article-checkbox';
-    checkbox.checked = selectedArticleIds.has(article.id);
-    checkbox.dataset.articleId = article.id;
-    card.appendChild(checkbox);
-    const header = document.createElement('div');
-    header.className = 'article-header';
-    const authorEl = document.createElement('div');
-    authorEl.className = 'author';
-    authorEl.textContent = article.author || '';
-    const timeInfo = document.createElement('div');
-    timeInfo.className = 'time-info';
-    const timePost = document.createElement('div');
-    timePost.className = 'time';
-    timePost.title = article.timestampTitle || article.timestamp || '';
-    timePost.textContent = '發文：' + (article.timestampTitle ? article.timestampTitle : formatTime(article.timestamp));
-    const timeSaved = document.createElement('div');
-    timeSaved.className = 'time';
-    timeSaved.title = article.savedAt || '';
-    timeSaved.textContent = '儲存：' + formatTime(article.savedAt);
-    timeInfo.appendChild(timePost);
-    timeInfo.appendChild(timeSaved);
-    header.appendChild(authorEl);
-    header.appendChild(timeInfo);
-    card.appendChild(header);
-    const contentEl = document.createElement('div');
-    contentEl.className = 'article-content';
-    const contentText = (article.content || '').substring(0, 200);
-    contentEl.textContent = contentText + ((article.content || '').length > 200 ? '...' : '');
-    card.appendChild(contentEl);
-    if (isExpiredArticle(article)) {
-      const statusBadge = document.createElement('span');
-      statusBadge.className = 'tag';
-      statusBadge.textContent = '失效貼文';
-      statusBadge.title = article.expiredReason ? `原因：${article.expiredReason}` : '已歸類為失效貼文';
-      statusBadge.style.background = 'rgba(255, 48, 64, 0.12)';
-      statusBadge.style.color = 'var(--danger-color)';
-      statusBadge.style.marginTop = '0';
-      card.appendChild(statusBadge);
-    }
-    if (article.tags && article.tags.length > 0) {
-      const tagsContainer = document.createElement('div');
-      tagsContainer.className = 'tags';
-      article.tags.forEach(tag => {
-        const tagEl = document.createElement('span');
-        tagEl.className = 'tag';
-        tagEl.textContent = '#' + (tag || '');
-        tagsContainer.appendChild(tagEl);
-      });
-      card.appendChild(tagsContainer);
-    }
-    const actions = document.createElement('div');
-    actions.className = 'article-actions';
-    const link = document.createElement('a');
-    link.className = 'action-btn';
-    link.href = sanitizeUrl(article.postLink || '#');
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = '查看原文';
-    actions.appendChild(link);
-    if (article.embedCode) {
-      const copyEmbedBtn = document.createElement('button');
-      copyEmbedBtn.className = 'action-btn copy-embed-btn';
-      copyEmbedBtn.setAttribute('data-article-id', article.id);
-      copyEmbedBtn.textContent = '複製內嵌程式碼';
-      actions.appendChild(copyEmbedBtn);
-    }
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'action-btn delete-btn delete-article-btn';
-    deleteBtn.setAttribute('data-article-id', article.id);
-    deleteBtn.textContent = '刪除';
-    actions.appendChild(deleteBtn);
-    card.appendChild(actions);
-    container.appendChild(card);
-  });
-  container.querySelectorAll('.copy-embed-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const articleId = btn.dataset.articleId;
-      copyEmbed(articleId);
-    });
-  });
-  container.querySelectorAll('.delete-article-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const articleId = btn.dataset.articleId;
-      deleteArticle(articleId);
-    });
-  });
-  container.querySelectorAll('.article-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', (e) => {
-      const articleId = e.target.dataset.articleId;
-      const card = e.target.closest('.article-card');
-      if (e.target.checked) {
-        selectedArticleIds.add(articleId);
-        card.classList.add('selected');
-      } else {
-        selectedArticleIds.delete(articleId);
-        card.classList.remove('selected');
-      }
-      updateSelectionUI();
-    });
-  });
+  appendArticleCards(container, targetCount);
   updateSelectionUI();
+}
+function appendArticleCards(container, count) {
+  const previousButton = container.querySelector('.load-more-btn');
+  if (previousButton) previousButton.remove();
+  const fragment = document.createDocumentFragment();
+  const end = Math.min(filteredArticles.length, renderedCount + count);
+  let firstNewCard = null;
+  for (let i = renderedCount; i < end; i++) {
+    const card = createArticleCard(filteredArticles[i]);
+    if (!firstNewCard) firstNewCard = card;
+    fragment.appendChild(card);
+  }
+  renderedCount = end;
+  let loadMoreBtn = null;
+  if (renderedCount < filteredArticles.length) {
+    loadMoreBtn = document.createElement('button');
+    loadMoreBtn.type = 'button';
+    loadMoreBtn.className = 'btn load-more-btn';
+    loadMoreBtn.dataset.action = 'load-more';
+    loadMoreBtn.textContent = `顯示更多（還有 ${filteredArticles.length - renderedCount} 篇）`;
+    fragment.appendChild(loadMoreBtn);
+  }
+  container.appendChild(fragment);
+  if (loadMoreObserver) loadMoreObserver.disconnect();
+  if (loadMoreBtn) {
+    if (!loadMoreObserver) {
+      loadMoreObserver = new IntersectionObserver((entries) => {
+        if (entries.some(entry => entry.isIntersecting)) renderMoreArticles();
+      }, { root: container, rootMargin: LOAD_MORE_ROOT_MARGIN });
+    }
+    loadMoreObserver.observe(loadMoreBtn);
+  }
+  return firstNewCard;
+}
+function renderMoreArticles() {
+  const container = document.getElementById('articlesContainer');
+  if (!container) return null;
+  return appendArticleCards(container, RENDER_BATCH_SIZE);
+}
+function createArticleCard(article) {
+  const card = document.createElement('div');
+  card.className = 'article-card';
+  if (selectedArticleIds.has(article.id)) {
+    card.classList.add('selected');
+  }
+  card.dataset.id = article.id;
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'article-checkbox';
+  checkbox.checked = selectedArticleIds.has(article.id);
+  checkbox.dataset.articleId = article.id;
+  card.appendChild(checkbox);
+  const header = document.createElement('div');
+  header.className = 'article-header';
+  const authorEl = document.createElement('div');
+  authorEl.className = 'author';
+  authorEl.textContent = article.author || '';
+  const timeInfo = document.createElement('div');
+  timeInfo.className = 'time-info';
+  const timePost = document.createElement('div');
+  timePost.className = 'time';
+  timePost.title = article.timestampTitle || article.timestamp || '';
+  timePost.textContent = '發文：' + (article.timestampTitle ? article.timestampTitle : formatTime(article.timestamp));
+  const timeSaved = document.createElement('div');
+  timeSaved.className = 'time';
+  timeSaved.title = article.savedAt || '';
+  timeSaved.textContent = '儲存：' + formatTime(article.savedAt);
+  timeInfo.appendChild(timePost);
+  timeInfo.appendChild(timeSaved);
+  header.appendChild(authorEl);
+  header.appendChild(timeInfo);
+  card.appendChild(header);
+  const contentEl = document.createElement('div');
+  contentEl.className = 'article-content';
+  const contentText = (article.content || '').substring(0, 200);
+  contentEl.textContent = contentText + ((article.content || '').length > 200 ? '...' : '');
+  card.appendChild(contentEl);
+  if (isExpiredArticle(article)) {
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'tag';
+    statusBadge.textContent = '失效貼文';
+    statusBadge.title = article.expiredReason ? `原因：${article.expiredReason}` : '已歸類為失效貼文';
+    statusBadge.style.background = 'rgba(255, 48, 64, 0.12)';
+    statusBadge.style.color = 'var(--danger-color)';
+    statusBadge.style.marginTop = '0';
+    card.appendChild(statusBadge);
+  }
+  if (article.tags && article.tags.length > 0) {
+    const tagsContainer = document.createElement('div');
+    tagsContainer.className = 'tags';
+    article.tags.forEach(tag => {
+      const tagEl = document.createElement('span');
+      tagEl.className = 'tag';
+      tagEl.textContent = '#' + (tag || '');
+      tagsContainer.appendChild(tagEl);
+    });
+    card.appendChild(tagsContainer);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'article-actions';
+  const link = document.createElement('a');
+  link.className = 'action-btn';
+  link.href = sanitizeUrl(article.postLink || '#');
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = '查看原文';
+  actions.appendChild(link);
+  if (article.embedCode) {
+    const copyEmbedBtn = document.createElement('button');
+    copyEmbedBtn.className = 'action-btn copy-embed-btn';
+    copyEmbedBtn.setAttribute('data-article-id', article.id);
+    copyEmbedBtn.dataset.action = 'copy-embed';
+    copyEmbedBtn.textContent = '複製內嵌程式碼';
+    actions.appendChild(copyEmbedBtn);
+  }
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'action-btn delete-btn delete-article-btn';
+  deleteBtn.setAttribute('data-article-id', article.id);
+  deleteBtn.dataset.action = 'delete';
+  deleteBtn.textContent = '刪除';
+  actions.appendChild(deleteBtn);
+  card.appendChild(actions);
+  return card;
+}
+function handleArticleListClick(e) {
+  const actionEl = e.target.closest('[data-action]');
+  if (!actionEl || !e.currentTarget.contains(actionEl)) return;
+  switch (actionEl.dataset.action) {
+    case 'load-more': {
+      const firstNewCard = renderMoreArticles();
+      const firstFocusable = firstNewCard ? firstNewCard.querySelector('input, button, a') : null;
+      if (firstFocusable) firstFocusable.focus();
+      break;
+    }
+    case 'copy-embed':
+      copyEmbed(actionEl.dataset.articleId);
+      break;
+    case 'delete':
+      deleteArticle(actionEl.dataset.articleId);
+      break;
+  }
+}
+function handleArticleListChange(e) {
+  const checkbox = e.target;
+  if (!checkbox.classList.contains('article-checkbox')) return;
+  const articleId = checkbox.dataset.articleId;
+  const card = checkbox.closest('.article-card');
+  if (checkbox.checked) {
+    selectedArticleIds.add(articleId);
+    card.classList.add('selected');
+  } else {
+    selectedArticleIds.delete(articleId);
+    card.classList.remove('selected');
+  }
+  updateSelectionUI();
+}
+function syncRenderedSelection() {
+  document.querySelectorAll('#articlesContainer .article-card').forEach(card => {
+    const isSelected = selectedArticleIds.has(card.dataset.id);
+    card.classList.toggle('selected', isSelected);
+    const checkbox = card.querySelector('.article-checkbox');
+    if (checkbox) checkbox.checked = isSelected;
+  });
 }
 function updateSelectionUI() {
   const countElement = document.getElementById('articleCount');
@@ -426,11 +542,13 @@ function toggleSelectAll(checked) {
   } else {
     filteredArticles.forEach(a => selectedArticleIds.delete(a.id));
   }
-  renderArticles();
+  syncRenderedSelection();
+  updateSelectionUI();
 }
 function clearSelection() {
   selectedArticleIds.clear();
-  renderArticles();
+  syncRenderedSelection();
+  updateSelectionUI();
 }
 function formatTime(isoString) {
   if (!isoString) return '未知';
@@ -457,14 +575,14 @@ async function deleteArticle(articleId) {
   if (!article) return;
   const snapshot = [...allArticles];
   allArticles = allArticles.filter(a => a.id !== articleId);
-  await chrome.storage.local.set({ savedArticles: allArticles });
+  await writeSavedArticles(allArticles);
   filteredArticles = filteredArticles.filter(a => a.id !== articleId);
   selectedArticleIds.delete(articleId);
-  renderArticles();
+  renderArticles({ keepRendered: true });
   showUndoToast('已刪除 1 篇貼文', async () => {
-    allArticles = snapshot;
-    await chrome.storage.local.set({ savedArticles: allArticles });
-    applyFilters();
+    allArticles = mergeSnapshotWithCurrent(snapshot);
+    await writeSavedArticles(allArticles);
+    applyFilters({ keepRendered: true });
     showToast('已復原');
   });
 }
@@ -661,7 +779,7 @@ async function handleImportFile(event) {
       allArticles = importedArticles;
       showToast(`已匯入 ${importedArticles.length} 筆資料（取代原有資料）`);
     }
-    await chrome.storage.local.set({ savedArticles: allArticles });
+    await writeSavedArticles(allArticles);
     filteredArticles = [...allArticles];
     renderArticles();
   } catch (err) {
@@ -767,14 +885,14 @@ async function clearAllArticles() {
   );
   if (!confirmed) return;
   const snapshot = [...allArticles];
-  await chrome.storage.local.set({ savedArticles: [] });
+  await writeSavedArticles([]);
   allArticles = [];
   filteredArticles = [];
   selectedArticleIds.clear();
   renderArticles();
   showUndoToast(`已清除 ${snapshot.length} 篇貼文`, async () => {
-    allArticles = snapshot;
-    await chrome.storage.local.set({ savedArticles: allArticles });
+    allArticles = mergeSnapshotWithCurrent(snapshot);
+    await writeSavedArticles(allArticles);
     applyFilters();
     showToast('已復原全部貼文');
   });

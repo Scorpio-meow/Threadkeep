@@ -7,7 +7,7 @@
 **[前往介紹頁](https://scorpio-meow.github.io/Threads-embedded-code/)**：功能導覽、互動清洗示範與安裝教學
 
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-D12F35?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threads-embedded-code/)
-[![Version](https://img.shields.io/badge/version-2.2.0-blue?style=for-the-badge)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-2.2.1-blue?style=for-the-badge)](./manifest.json)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
@@ -170,7 +170,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 ## 核心功能特性
 
 ### 1. 智慧攔截與安全儲存
-- **DOM 變更監聽**：透過 `MutationObserver` 監控頁面 DOM 結構，搭配 5 秒週期性檢查，無縫捕捉使用者點擊「取得內嵌程式碼」所開啟的對話框。
+- **點擊委派與對話框偵測**：在 `document` 以捕獲階段掛一個點擊監聽，只有點到「取得內嵌程式碼」時才擷取貼文內容；`MutationObserver` 只負責在 DOM 變動後（每個畫面影格最多一次）檢查是否出現內嵌對話框，不掃描整頁按鈕，也不定時輪詢。
 - **主動式偵測機制**：透過 `processOpenEmbedDialogs` 函式，即使對話框由非擴充功能按鈕開啟，也能自動解析對話框中的唯讀輸入框並儲存。
 - **上下文保護封裝**：內建 `safeStorageGet` 與 `safeStorageSet`，自動檢查擴充功能執行環境生命週期 (`isExtensionAlive`)，避免擴充功能更新或重載時拋出未捕獲的 `Extension context invalidated` 例外。
 
@@ -204,7 +204,8 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 
 ### 5. 背景循序同步與失效監控佇列
 - **循序非同步更新**：點擊「更新貼文資料」時，系統會依照當前篩選與排序後的結果建立佇列（若已勾選貼文，則僅更新勾選項目），並重複使用**同一個背景工作分頁**循序載入，有效避免多開分頁導致的系統卡頓或平台流量限制。
-- **不設等待上限**：分頁載入與頁面解析均不設逾時上限，注入腳本以 80ms 週期輪詢直到取得發文時間或內文為止，避免網路較慢時將正常貼文誤判為失效。
+- **寬鬆的安全上限**：每篇的分頁載入與頁面解析合計最多等 60 秒，超過只記為「失敗」、不標記失效，網路較慢的正常貼文不會被誤判；注入腳本以 `MutationObserver` 在頁面渲染時立即檢查（兩次檢查至少間隔 80ms），不受背景分頁的計時器節流影響。
+- **分批寫回**：每處理 20 篇、按下暫停或佇列結束時，才讀取最新資料、合併後寫回一次，期間在 Threads 新存的貼文不會被覆蓋。進行中只重繪該篇卡片與統計數字，佇列結束後才更新清單篩選與統計雲。
 - **進度與中斷控制**：即時顯示「更新中 (X/Y)」進度條與百分比動畫，並提供「**暫停 / 繼續**」與「**取消**」功能按鈕。
 - **智慧失效標記與自動恢復**：
   - 若貼文被刪除、轉為私密或發生轉導（`redirected`），系統將自動標記為 `expired` 並記錄原因。
@@ -214,6 +215,9 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 ### 6. 雙檢視介面與全方位批次操作
 - **Popup 快速面板**：提供即時搜尋、多維度排序、類型篩選、單篇刪除、複製內嵌代碼、資料匯出與匯入功能。
 - **Dashboard 全頁儀表板**：全螢幕響應式佈局，具備多欄位卡片展示、統計數據看板、批次操作功能與完整預覽。
+- **分批渲染長清單**：清單一次只建立 60 張卡片（Popup 為 30 張），捲到接近底部或按「顯示更多」才載入下一批；卡片上的按鈕事件統一由清單容器委派，Dashboard 卡片另以 `content-visibility: auto` 略過畫面外的排版。
+- **跨介面同步**：Popup 與 Dashboard 監聽 `chrome.storage.onChanged`，在 Threads 新存或在另一個介面刪除的貼文會即時反映到清單；自己寫入引起的事件會略過，不重複重繪。
+- **搜尋範圍**：比對內文、作者、標籤與貼文連結的路徑（`postLink` 去掉網域後的 `/@作者/post/貼文代碼`），可用帳號或貼文代碼找貼文。每篇的搜尋字串在第一次搜尋時建立並快取，排序也先算好每篇的比較值再排序。
 - **批次勾選管理**：支援全選目前頁面與半選（Indeterminate）狀態顯示；未勾選任何項目時，「更新貼文資料」、「批次複製 Embed 代碼」與「批次刪除」一律維持 `disabled`，滑鼠與鍵盤皆無法觸發。
 - **頁內確認 Modal**：兩個介面的破壞性操作（清除全部、批次刪除、覆寫匯入）全面改用頁內 Modal 二次確認，完全不使用原生 `confirm()`、`alert()` 與 `prompt()`；這對 Popup 尤其關鍵——原生對話框會在 Popup 失焦時連同 Popup 一併關閉並回傳預設值。
 
@@ -266,7 +270,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 |  規範標準    | Chrome Extensions Manifest V3                          |
 |  核心語言    | 原生 JavaScript (ES6+), HTML5, CSS3 Variables          |
 |  依賴套件    | 無 npm 套件 (介面字型由 Google Fonts 載入)             |
-|  資料儲存    | 瀏覽器本機儲存 (chrome.storage.local, 配額上限 10MB)   |
+|  資料儲存    | 瀏覽器本機儲存 (chrome.storage.local，以 unlimitedStorage 解除 10MB 配額)   |
 |  安全規範    | 符合嚴格 CSP (Content Security Policy)，無行內事件與樣式 |
 |  相容平台    | Google Chrome, Microsoft Edge, Brave, Opera, Arc 等    |
 |  建置流程    | 零編譯步驟 (Zero-build step, 開箱即用)                |
@@ -290,7 +294,7 @@ threads-embedded-code/
 ├── dashboard.html        # 完整管理儀表板 HTML (包含即時預覽彈窗、統計看板、批次工具列)
 ├── dashboard.css         # 儀表板樣式表 (Grid 排版、預覽彈窗、動畫轉場、動態降級)
 ├── dashboard.js          # 儀表板控制邏輯 (統計雲、預覽控制器、循序佇列、批次處理、復原機制)
-├── favicon.png           # 擴充功能 128x128 圖示資源
+├── icons/                # 擴充功能圖示 (16、32、48、128 px)
 ├── llms.txt              # AI 友善架構與 RAG 快速索引規範文件
 ├── README.md             # 專案說明文件 (本檔案)
 ├── CONTRIBUTING.md       # 貢獻指南
@@ -375,17 +379,21 @@ sequenceDiagram
         Queue->>Tab: 重用單一隱藏分頁載入 postLink
         Tab->>Page: 發送 HTTP 請求
         Page-->>Tab: 回傳 HTML 與動態內容
-        Queue->>Tab: 等待分頁載入完成 (status complete，不設逾時上限)
+        Queue->>Tab: 等待分頁載入與解析 (載入加解析合計最多 60 秒)
         alt 貼文網址變更 (Redirected)
-            Queue->>Storage: 標記 status='expired', reason='redirected'
+            Queue->>Queue: 標記 status='expired', reason='redirected'
         else 頁面不存在或已被移除
-            Queue->>Storage: 標記 status='expired', reason='post-not-found'
+            Queue->>Queue: 標記 status='expired', reason='post-not-found'
         else 成功讀取發布時間與最新內容
-            Queue->>Storage: 更新 timestampTitle, 清除失效狀態 status='active'
+            Queue->>Queue: 更新 timestampTitle, 清除失效狀態 status='active'
         end
-        Queue->>UI: 更新進度條 UI (X/Y)
+        opt 累積 20 篇或按下暫停
+            Queue->>Storage: 讀取最新資料、合併後寫回
+        end
+        Queue->>UI: 更新進度條與該篇卡片 (X/Y)
     end
     Queue->>Tab: 佇列結束後關閉工作分頁 (chrome.tabs.remove)
+    Queue->>Storage: 寫回剩餘的更新
     Queue->>UI: 更新完畢通知
 ```
 
@@ -536,30 +544,34 @@ function isLikelyThreadsFallbackDescription(text) {
 ```javascript
 for (const article of articlesNeedingUpdate) {
   if (cancelUpdateRequested) break;
+  if (isUpdatePaused) await flushPendingUpdates();                 // 暫停前先寫回已完成的部分
   while (isUpdatePaused && !cancelUpdateRequested) {
     await new Promise(resolve => setTimeout(resolve, 150)); // 暫停中等待恢復
   }
   if (cancelUpdateRequested) break;
 
   const tabId = await getOrCreateWorkerTab();                      // 重用同一個背景分頁
-  const postInfo = await fetchPostInfoWithReusableTab(tabId, article.postLink);
+  const postInfo = await fetchPostInfoWithReusableTab(tabId, article.postLink); // 最多等 60 秒
   if (postInfo && postInfo.status === 'expired') {
     markArticleAsExpired(article, postInfo.reason);                // redirected / post-not-found / fallback-summary
   } else if (postInfo) {
     clearArticleExpiredStatus(article);                            // 貼文復活則清除失效標記
     // 寫回 timestamp、timestampTitle、content 與 tags
   }
-  await chrome.storage.local.set({ savedArticles: allArticles });  // 逐篇即時落地
+  pendingPersistCount++;
+  if (pendingPersistCount >= UPDATE_PERSIST_BATCH_SIZE) await flushPendingUpdates(); // 每 20 篇合併寫回
+  refreshRenderedCard(article);                                    // 只重繪這一張卡片
 }
+// finally：關閉工作分頁、寫回剩餘的更新，再整體重繪清單與統計雲
 ```
 
-- **逐篇即時寫回**：每處理完一篇即寫入 `chrome.storage.local` 並重繪統計與標籤雲，中途取消或關閉頁面都不會遺失已完成的部分。
+- **分批合併寫回**：`flushPendingUpdates` 先讀取 `chrome.storage.local` 的最新資料，依 `id` 合併（保留記憶體中已更新的物件，並納入其他頁面新增或刪除的貼文）後才寫回，避免覆蓋佇列進行期間在 Threads 新存的貼文。中途關閉頁面最多遺失最後未寫回的 19 篇更新結果，重新執行即可補上。
 - **分頁生命週期**：工作分頁僅在擷取失敗或整個佇列結束（`finally`）時關閉，其餘時間重複使用，避免反覆開關分頁的成本。
-- **不設逾時**：`waitForTabNavigation` 只監聽 `status === 'complete'` 與分頁被關閉兩種結果；注入頁面的解析器則以 80ms 輪詢直到取得資料或判定失效。
+- **安全上限**：`fetchPostInfoWithReusableTab` 以 60 秒（`POST_FETCH_TIMEOUT_MS`）為上限，涵蓋分頁載入與頁面解析；逾時回傳 `null`，記為失敗並關閉工作分頁，不會標記為失效。注入頁面的解析器以 `MutationObserver` 觸發檢查，兩次檢查至少間隔 80ms（`POST_INFO_CHECK_INTERVAL_MS`）。
 
 ### 6. 即時預覽動態高度自適應通訊
 
-Threads 官方 `/embed` 頁面不會主動回報高度，因此本擴充功能透過 `manifest.json` 的 `all_frames: true` 將 `content.js` 一併注入預覽 iframe。當腳本偵測到自己位於 `/embed` 或非頂層框架時，改走 `handleEmbedFrameResize()` 分支：以 `ResizeObserver` 與 `MutationObserver` 觀測 `.Embed` 容器、監聽圖片與影片的 `load` / `loadeddata` / `error` 事件，並搭配 50ms ~ 4000ms 共 8 段延遲重測，將量得的高度回傳父視窗：
+Threads 官方 `/embed` 頁面不會主動回報高度，因此本擴充功能透過 `manifest.json` 的 `all_frames: true` 將 `content.js` 一併注入預覽 iframe。當腳本偵測到自己位於 `/embed` 或非頂層框架時，改走 `handleEmbedFrameResize()` 分支：以 `ResizeObserver` 觀測 `.Embed` 容器與 `body` 的第一個子元素，容器被替換時由只看節點增減的 `MutationObserver` 重新掛上觀測。量測合併到每個畫面影格最多一次，高度有變化才將量得的高度回傳父視窗：
 
 ```javascript
 window.parent.postMessage({ type: 'THREADS_EMBED_RESIZE', height: h }, '*');
@@ -658,12 +670,12 @@ interface SavedArticle {
 ```
 
 > [!NOTE]
-> 自 v2.1.0 起，`codeBlocks` 與 `codeCount` 欄位已移除。相關抽取邏輯在舊版儲存流程被嵌入對話框攔截取代後即未再接線，新資料一律為空陣列；匯入舊備份時也不會再保留這兩個欄位，程式碼內容亦不再納入搜尋範圍（搜尋比對 `content`、`author`、`tags` 與 `embedCode`）。
+> 自 v2.1.0 起，`codeBlocks` 與 `codeCount` 欄位已移除。相關抽取邏輯在舊版儲存流程被嵌入對話框攔截取代後即未再接線，新資料一律為空陣列；匯入舊備份時也不會再保留這兩個欄位，程式碼內容亦不再納入搜尋範圍。自 v2.2.1 起，搜尋比對 `content`、`author`、`tags` 與 `postLink` 的路徑部分（不含網域）；先前比對的 `embedCode` 大多是固定的官方樣板（SVG 與行內樣式），搜尋「threads」之類的字會命中所有貼文。
 
 ### 儲存空間管理
 
-- **儲存配額**：Chromium `chrome.storage.local` 預設配額為 **10MB**（約可容納 3,000 至 5,000 篇包含完整中繼資料的貼文）。
-- **配額預警**：若儲存時發生 `QUOTA_BYTES_EXCEEDED` 錯誤，系統會自動彈出提示。建議定期將資料匯出為「完整版資料備份檔案」並清理不必要的舊資料。
+- **儲存配額**：Chromium `chrome.storage.local` 預設配額為 **10MB**，每篇貼文含官方內嵌碼約 3–4 KB，約兩、三千篇就會用完。本擴充功能宣告 `unlimitedStorage` 權限解除這個上限，實際容量取決於磁碟空間。
+- **寫入失敗提示**：若儲存時仍發生錯誤，系統會自動彈出提示。建議定期將資料匯出為「完整版資料備份檔案」並清理不必要的舊資料。
 
 ---
 
@@ -676,6 +688,7 @@ interface SavedArticle {
 | 權限項目 | 權限類型 | 宣告用途與安全說明 |
 | :--- | :--- | :--- |
 | `storage` | API 權限 | 讀取與寫入本機 `chrome.storage.local` 資料庫。 |
+| `unlimitedStorage` | API 權限 | 解除 `chrome.storage.local` 的 10MB 配額，收藏數千篇貼文時不會寫入失敗；Chrome 安裝時不會因此顯示額外的權限警告。 |
 | `tabs` | API 權限 | 在背景建立靜默分頁以執行「更新貼文資料」與失效檢查。 |
 | `scripting` | API 權限 | 向背景載入的 Threads 分頁動態注入資訊擷取腳本。 |
 | `https://www.threads.com/*` | 主機權限 | 允許在標準 Threads 網域注入 Content Script 並讀取貼文內容。 |
@@ -831,8 +844,8 @@ const posts = [
 
 > [!IMPORTANT]
 > **問題：本機儲存空間是否有限制？**
-> - `chrome.storage.local` 在多數 Chromium 瀏覽器中預設有 **10MB** 的配額限制。
-> - 當儲存空間接近上限並拋出 `QUOTA_BYTES_EXCEEDED` 錯誤時，擴充功能會提示您清理。建議定期將完整版資料匯出備份，並清除不需要的舊貼文。
+> - `chrome.storage.local` 在多數 Chromium 瀏覽器中預設有 **10MB** 的配額限制；本擴充功能宣告 `unlimitedStorage` 權限解除這個上限，實際容量取決於磁碟空間。
+> - 若寫入仍然失敗，擴充功能會提示您。建議定期將完整版資料匯出備份，並清除不需要的舊貼文。
 
 > [!TIP]
 > **問題：不小心刪錯貼文或按到「清除全部資料」怎麼辦？**
@@ -878,6 +891,34 @@ cd threads-embedded-code
 ## 版本更新紀錄 (Changelog)
 
 本專案嚴格遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 格式規範。
+
+### [2.2.1] - 2026-10-23
+
+#### 新增
+- 新增安全政策（`SECURITY.md`）、行為準則（`CODE_OF_CONDUCT.md`）、貢獻指南（`CONTRIBUTING.md`）與無障礙聲明（`ACCESSIBILITY.md`），以及擷取問題、功能異常、無障礙、功能建議四種 Issue 表單與 Pull Request 範本。
+- 宣告 `unlimitedStorage` 權限，解除 `chrome.storage.local` 的 10MB 配額；以每篇約 3–4 KB 計算，原本約兩、三千篇就會寫入失敗。
+- Popup 與 Dashboard 監聽 `chrome.storage.onChanged`，在 Threads 新存或在另一個介面刪除的貼文會即時反映到清單。
+
+#### 改善
+- 清單改為分批渲染：Dashboard 一次建立 60 張卡片、Popup 30 張，捲到接近底部或按「顯示更多」才載入下一批；卡片事件改由清單容器委派，全選與清除選取不再重建整份清單，Dashboard 卡片另加上 `content-visibility: auto`。
+- 搜尋改為比對內文、作者、標籤與貼文連結的路徑（不含網域），並快取每篇的小寫搜尋字串；不再比對 `embedCode`，其中固定的官方樣板會讓「threads」等字命中所有貼文。
+- 排序先算好每篇的比較值再排序，作者排序改用共用的 `Intl.Collator`。
+- 「更新貼文資料」改為每 20 篇（或按下暫停、佇列結束時）合併寫回一次，進行中只重繪該篇卡片與統計數字，不再每篇都寫回全部資料並重建整份清單。
+- 背景更新的頁面解析改以 `MutationObserver` 觸發檢查，取代每 80ms 讀取整頁 `innerText` 的輪詢，不受背景分頁計時器節流影響。
+- Threads 頁面改以 `document` 上單一的點擊委派偵測「取得內嵌程式碼」，不再於每次 DOM 變動時掃描整頁按鈕並查詢樣式與版面，也移除每 5 秒一次的輪詢；內嵌對話框的檢查合併為每個畫面影格最多一次，分頁在背景時暫停。
+- 即時預覽 iframe 的高度回報改為只靠 `ResizeObserver`，量測合併為每個畫面影格最多一次、高度有變化才回傳，移除 8 段延遲重測與媒體載入事件監聽。
+- 擴充功能圖示改為 `icons/` 下 16、32、48、128 px 四種尺寸，取代 4.5 MB 的 2048×2048 `favicon.png`。
+- 從內嵌對話框儲存時，不再重複擷取同一篇貼文的內文。
+
+#### 修正
+- 修復內文夾帶 GIF 貼圖或表情圖片（`aria-hidden` 的 `img`）時整段被當成媒體排除，導致內文空白或退回 `og:description` 的問題。
+- 排除 `a[href*="/search"]` 主題／熱門話題連結的文字，「超夯：…」與主題標籤不再混入內文。
+- 新增「已釘選」「作者」與單獨「·」三條過濾規則，規則數由 41 條增至 44 條。
+- 單篇貼文頁的 `threads_post_page_0` 已變成空的佔位元素，改為只在有文字時才當作搜尋範圍，目標貼文改由永久連結定位。
+- 修復背景更新期間在 Threads 新存的貼文，會被佇列寫回的舊資料覆蓋而遺失的問題；寫回前改為先讀取最新資料再依 `id` 合併。
+- 修復背景更新遇到預期外的頁面時會永遠等待、卡住整個佇列的問題；每篇改為最多等 60 秒，逾時記為失敗、不標記失效。
+- 修復 Dashboard 刪除後按「復原」會連同期間新存的貼文一起蓋掉的問題；復原時改為保留快照之後新增的貼文。
+- 修復取消背景更新後，完成提示仍顯示「資料更新完成」而非「更新已中途停止」的問題。
 
 ### [2.2.0] - 2026-09-23
 

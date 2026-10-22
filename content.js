@@ -42,12 +42,13 @@ async function safeStorageSet(obj) {
   }
 }
 function handleEmbedFrameResize() {
+  const findEmbedElement = () => document.querySelector('.Embed') ||
+    document.querySelector('div[class*="Embed"]') ||
+    document.querySelector('div[id^="u_0_0_"] > div') ||
+    document.querySelector('div[id^="u_"] > div') ||
+    document.querySelector('div[id^="u_0_0_"]');
   const getCardHeight = () => {
-    const embedEl = document.querySelector('.Embed') ||
-      document.querySelector('div[class*="Embed"]') ||
-      document.querySelector('div[id^="u_0_0_"] > div') ||
-      document.querySelector('div[id^="u_"] > div') ||
-      document.querySelector('div[id^="u_0_0_"]');
+    const embedEl = findEmbedElement();
     if (embedEl) {
       const rect = embedEl.getBoundingClientRect();
       const h = Math.ceil(rect.height || embedEl.offsetHeight || 0);
@@ -65,59 +66,44 @@ function handleEmbedFrameResize() {
     }
     return 0;
   };
+  let lastReportedHeight = 0;
+  let notifyScheduled = false;
+  const observedElements = new WeakSet();
+  const ro = new ResizeObserver(() => {
+    scheduleNotify();
+  });
+  const observeCardElements = () => {
+    [findEmbedElement(), document.body ? document.body.firstElementChild : null].forEach((el) => {
+      if (el && !observedElements.has(el)) {
+        observedElements.add(el);
+        ro.observe(el);
+      }
+    });
+  };
   const notify = () => {
+    notifyScheduled = false;
+    observeCardElements();
     const h = getCardHeight();
-    if (h > 50) {
+    if (h > 50 && h !== lastReportedHeight) {
+      lastReportedHeight = h;
       window.parent.postMessage({
         type: 'THREADS_EMBED_RESIZE',
         height: h
       }, '*');
     }
   };
-  let ro = null;
-  if (window.ResizeObserver) {
-    ro = new ResizeObserver(() => {
-      notify();
-    });
-  }
-  const attachMediaListeners = () => {
-    document.querySelectorAll('img, video, canvas, picture').forEach(media => {
-      if (!media.__threadsObserved) {
-        media.__threadsObserved = true;
-        if (ro) {
-          try { ro.observe(media); } catch (_) { }
-        }
-        media.addEventListener('load', notify);
-        media.addEventListener('loadeddata', notify);
-        media.addEventListener('error', notify);
-      }
-    });
-  };
-  notify();
-  if (ro) {
-    const embedEl = document.querySelector('.Embed') || document.querySelector('div[id^="u_0_0_"]') || (document.body ? document.body.firstElementChild : null);
-    if (embedEl) ro.observe(embedEl);
-  }
-  attachMediaListeners();
-  const mo = new MutationObserver(() => {
-    const embedEl = document.querySelector('.Embed') || document.querySelector('div[id^="u_0_0_"]');
-    if (ro && embedEl) {
-      try { ro.observe(embedEl); } catch (_) { }
+  const scheduleNotify = () => {
+    if (notifyScheduled) {
+      return;
     }
-    attachMediaListeners();
-    notify();
-  });
+    notifyScheduled = true;
+    requestAnimationFrame(notify);
+  };
+  scheduleNotify();
   if (document.body) {
-    mo.observe(document.body, { childList: true, subtree: true, attributes: true });
+    const mo = new MutationObserver(scheduleNotify);
+    mo.observe(document.body, { childList: true, subtree: true });
   }
-  window.addEventListener('load', () => {
-    attachMediaListeners();
-    notify();
-  });
-  [50, 150, 300, 600, 1000, 1500, 2500, 4000].forEach(delay => setTimeout(() => {
-    attachMediaListeners();
-    notify();
-  }, delay));
 }
 function init() {
   if (location.pathname.includes('/embed') || window.self !== window.top) {
@@ -130,19 +116,17 @@ function init() {
     setTimeout(init, 500);
     return;
   }
-  const observer = new MutationObserver((mutations) => {
-    addSaveButtons();
-  });
+  if (window.__threadsSaverListening) {
+    return;
+  }
+  window.__threadsSaverListening = true;
+  document.addEventListener('click', handleEmbedTriggerClick, true);
+  const observer = new MutationObserver(scheduleEmbedDialogCheck);
   observer.observe(document.body, {
     childList: true,
     subtree: true
   });
-  setTimeout(() => {
-    addSaveButtons();
-  }, 1000);
-  window.__threadsSaverIntervalId = window.__threadsSaverIntervalId || setInterval(() => {
-    addSaveButtons();
-  }, 5000);
+  scheduleEmbedDialogCheck();
 }
 function isSinglePostPage() {
   const path = window.location.pathname;
@@ -371,17 +355,6 @@ const EMBED_TRIGGER_PATTERNS = [
   /^Embed$/i,
   /\bEmbed\b/i
 ];
-function isElementVisible(element) {
-  if (!element) {
-    return false;
-  }
-  const rects = element.getClientRects();
-  if (!rects || rects.length === 0) {
-    return false;
-  }
-  const style = window.getComputedStyle(element);
-  return style.display !== 'none' && style.visibility !== 'hidden';
-}
 function getElementLabelText(element) {
   if (!element) {
     return '';
@@ -404,10 +377,6 @@ function isEmbedTriggerElement(element) {
     return false;
   }
   return EMBED_TRIGGER_PATTERNS.some((pattern) => pattern.test(labelText));
-}
-function findEmbedCodeTriggers() {
-  const candidates = Array.from(document.querySelectorAll(EMBED_TRIGGER_SELECTORS));
-  return candidates.filter((element) => isElementVisible(element) && isEmbedTriggerElement(element));
 }
 function findPostElementFromPostLink(postLink) {
   if (!postLink || typeof postLink !== 'string') return null;
@@ -576,13 +545,15 @@ async function processOpenEmbedDialogs() {
       ? findPostElementFromPostLink(postLink)
       : dialog.closest('[data-pressable-container]') ||
       dialog.closest('article') ||
-      dialog.closest('[role="article"]'); const preContent = postElement ? extractPostContent(postElement) : '';
+      dialog.closest('[role="article"]');
+    const preContent = postElement ? extractPostContent(postElement) : '';
     const preAuthor = postElement ? extractAuthorFromPost(postElement, postLink) : '';
     console.log('[Threads Saver] 偵測到可直接讀取的內嵌對話框');
     try {
       await saveArticleFromEmbedDialog(dialog, {
         postElement,
         postLink,
+        preContent,
         preAuthor
       });
       dialog.dataset.threadsSaverSaved = 'true';
@@ -591,74 +562,68 @@ async function processOpenEmbedDialogs() {
     }
   }
 }
-function addSaveButtons() {
-  const embedButtons = findEmbedCodeTriggers();
-  if (window.__threadsSaverLastTriggerCount !== embedButtons.length) {
-    window.__threadsSaverLastTriggerCount = embedButtons.length;
-    console.log(`[Threads Saver] 找到 ${embedButtons.length} 個「取得內嵌程式碼」按鈕`);
-    console.log('[Threads Saver] 準備處理', embedButtons.length, '個嵌入按鈕');
-    if (embedButtons.length === 0) {
-      console.log('[Threads Saver] 目前尚未偵測到可附加的觸發項，會持續監看內嵌對話框');
-    }
+function scheduleEmbedDialogCheck() {
+  if (window.__threadsSaverDialogCheckScheduled) {
+    return;
   }
-  embedButtons.forEach((embedButton, index) => {
-    if (embedButton.dataset.threadsSaverAttached) {
-      console.log(`[Threads Saver] 按鈕 ${index + 1} 已處理過,跳過`);
+  window.__threadsSaverDialogCheckScheduled = true;
+  requestAnimationFrame(() => {
+    window.__threadsSaverDialogCheckScheduled = false;
+    void processOpenEmbedDialogs();
+  });
+}
+function handleEmbedTriggerClick(e) {
+  const embedButton = e.target instanceof Element ? e.target.closest(EMBED_TRIGGER_SELECTORS) : null;
+  if (!embedButton || !isEmbedTriggerElement(embedButton)) {
+    return;
+  }
+  console.log('[Threads Saver] 偵測到「取得內嵌程式碼」被點擊');
+  let preContent = '';
+  let preAuthor = '';
+  const postElement =
+    embedButton.closest('[data-pressable-container]') ||
+    embedButton.closest('[data-pagelet="threads_post_page_0"]') ||
+    embedButton.closest('article') ||
+    embedButton.closest('[role="article"]');
+  if (postElement) {
+    console.log('[Threads Saver] 點擊前找到貼文容器元素');
+    preContent = extractPostContent(postElement);
+    if (preContent) {
+      console.log('[Threads Saver] 提取到內容:', preContent.substring(0, 50));
+    }
+    const authorLink = postElement.querySelector('a[role="link"][href*="/@"]');
+    if (authorLink) {
+      preAuthor = authorLink.innerText || '';
+      console.log('[Threads Saver] 點擊前提取到作者:', preAuthor);
+    }
+  } else {
+    console.log('[Threads Saver] 點擊前未找到貼文容器元素');
+  }
+  setTimeout(async () => {
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    if (dialogs.length === 0) {
+      console.error('[Threads Saver] 找不到對話框');
+      showNotification('找不到內嵌程式碼對話框', { type: 'error' });
       return;
     }
-    console.log(`[Threads Saver] 處理按鈕 ${index + 1}`);
-    embedButton.dataset.threadsSaverAttached = 'true';
-    embedButton.addEventListener('click', async (e) => {
-      console.log('[Threads Saver] 偵測到「取得內嵌程式碼」被點擊');
-      let preContent = '';
-      let preAuthor = '';
-      const postElement =
-        embedButton.closest('[data-pressable-container]') ||
-        embedButton.closest('[data-pagelet="threads_post_page_0"]') ||
-        embedButton.closest('article') ||
-        embedButton.closest('[role="article"]');
-      if (postElement) {
-        console.log('[Threads Saver] 點擊前找到貼文容器元素');
-        preContent = extractPostContent(postElement);
-        if (preContent) {
-          console.log('[Threads Saver] 提取到內容:', preContent.substring(0, 50));
-        }
-        const authorLink = postElement.querySelector('a[role="link"][href*="/@"]');
-        if (authorLink) {
-          preAuthor = authorLink.innerText || '';
-          console.log('[Threads Saver] 點擊前提取到作者:', preAuthor);
-        }
-      } else {
-        console.log('[Threads Saver] 點擊前未找到貼文容器元素');
-      }
-      setTimeout(async () => {
-        const dialogs = document.querySelectorAll('[role="dialog"]');
-        if (dialogs.length === 0) {
-          console.error('[Threads Saver] 找不到對話框');
-          showNotification('找不到內嵌程式碼對話框', { type: 'error' });
-          return;
-        }
-        const dialog = dialogs[dialogs.length - 1];
-        console.log('[Threads Saver] 找到', dialogs.length, '個對話框,使用最新的一個');
-        if (dialog.dataset.threadsSaverSaved === 'true' || dialog.dataset.threadsSaverSaving === 'true') {
-          console.log('[Threads Saver] 對話框已處理過,跳過');
-          return;
-        }
-        dialog.dataset.threadsSaverSaving = 'true';
-        try {
-          await saveArticleFromEmbedDialog(dialog, {
-            postElement,
-            preAuthor
-          });
-          dialog.dataset.threadsSaverSaved = 'true';
-        } finally {
-          delete dialog.dataset.threadsSaverSaving;
-        }
-      }, 1000);
-    }, true);
-    console.log('[Threads Saver] 已附加監聽器到「取得內嵌程式碼」按鈕');
-  });
-  void processOpenEmbedDialogs();
+    const dialog = dialogs[dialogs.length - 1];
+    console.log('[Threads Saver] 找到', dialogs.length, '個對話框,使用最新的一個');
+    if (dialog.dataset.threadsSaverSaved === 'true' || dialog.dataset.threadsSaverSaving === 'true') {
+      console.log('[Threads Saver] 對話框已處理過,跳過');
+      return;
+    }
+    dialog.dataset.threadsSaverSaving = 'true';
+    try {
+      await saveArticleFromEmbedDialog(dialog, {
+        postElement,
+        preContent,
+        preAuthor
+      });
+      dialog.dataset.threadsSaverSaved = 'true';
+    } finally {
+      delete dialog.dataset.threadsSaverSaving;
+    }
+  }, 1000);
 }
 function extractTags(text, container = null) {
   const tags = [];

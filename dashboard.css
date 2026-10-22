@@ -706,6 +706,8 @@ body {
     transition: all var(--transition-speed);
     overflow: hidden;
     box-shadow: var(--shadow-sm);
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
 }
 
 .article-card:hover {
@@ -717,6 +719,10 @@ body {
 .article-card.selected {
     border-color: rgba(37, 99, 235, 0.28);
     background: linear-gradient(180deg, rgba(37, 99, 235, 0.05), rgba(37, 99, 235, 0.02));
+}
+
+.load-more-btn {
+    grid-column: 1 / -1;
 }
 
 .card-checkbox {

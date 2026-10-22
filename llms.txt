@@ -3,18 +3,18 @@
 
 ## Core Metadata
 - Project Name: Threads Code Saver
-- Current Version: 2.2.0
+- Current Version: 2.2.1
 - Specification: Google Chrome Extensions Manifest V3
 - Tech Stack: Pure Native JavaScript (ES6+), HTML5, CSS3 Custom Properties (Zero external dependencies, zero compilation/build step)
-- Data Persistence: Browser local storage (chrome.storage.local, 10MB quota, privacy-first). Saved data never leaves the browser; network access is limited to Threads domains (live preview and background updates) plus the Google Fonts stylesheets imported by popup.css and dashboard.css.
+- Data Persistence: Browser local storage (chrome.storage.local with the `unlimitedStorage` permission, so the default 10MB quota does not apply; privacy-first). Saved data never leaves the browser; network access is limited to Threads domains (live preview and background updates) plus the Google Fonts stylesheets imported by popup.css and dashboard.css.
 - Accessibility: In-page modals only (no native confirm/alert/prompt), focus trapping, live regions, 4.5:1 contrast, undersized hit targets enlarged to at least 24x24px, 12px minimum font size, prefers-reduced-motion support
 - License: MIT ([LICENSE](./LICENSE))
 - Source Repository: https://github.com/Scorpio-meow/threads-embedded-code
 - Companion Showcase Repository: https://github.com/Scorpio-meow/Threads-Featured-Posts (Consumes exported featured post data as its primary dataset)
 
 ## Core Files
-- manifest.json: Extension configuration manifest declaring Manifest V3 specs, permissions (storage, tabs, scripting), host matches for threads.com and threads.net, `all_frames: true` content script injection, and strict CSP headers.
-- content.js: Primary Content Script. On Threads pages it observes DOM mutations, intercepts the official embed dialog, scores embed candidates, extracts top-level text containers, filters image-only descriptions, and strips UI/timestamp noise. Inside `/embed` iframes it switches to `handleEmbedFrameResize()` and reports the measured `.Embed` height to the parent window.
+- manifest.json: Extension configuration manifest declaring Manifest V3 specs, permissions (storage, unlimitedStorage, tabs, scripting), host matches for threads.com and threads.net, `all_frames: true` content script injection, and strict CSP headers.
+- content.js: Primary Content Script. On Threads pages it listens for clicks on the "Get embed code" item through a single delegated capture-phase listener, checks for the official embed dialog at most once per animation frame after DOM mutations (no page-wide button scans or periodic polling), intercepts the dialog, scores embed candidates, extracts top-level text containers, filters image-only descriptions, and strips UI/timestamp noise. Inside `/embed` iframes it switches to `handleEmbedFrameResize()` and reports the measured `.Embed` height to the parent window.
 - styles.css: Injected notification styles for Threads web pages, including live-region toast styling and prefers-reduced-motion fallbacks.
 - popup.html: 480px width browser toolbar popup markup, including the confirm, import-source, import-paste, and import-mode modals.
 - popup.css: Toolbar popup stylesheet featuring dark theme tokens, responsive card lists, and reduced-motion support.
@@ -22,7 +22,7 @@
 - dashboard.html: Full-page management dashboard markup including the Live Preview modal (with loading and error states), statistical clouds, batch action toolbar, and confirmation/import modals.
 - dashboard.css: Dashboard stylesheet containing CSS Grid cards, preview modal layout, transition animations, and reduced-motion support.
 - dashboard.js: Dashboard core controller managing the Live Preview modal, sequential asynchronous update queue (with pause/resume/cancel signals), Top 15 tag/author clouds, batch operations, undo snapshots, and in-page confirmation dialogs.
-- favicon.png: 128x128 extension icon asset.
+- icons/: Extension icons at 16, 32, 48, and 128 px (`icon-16.png`, `icon-32.png`, `icon-48.png`, `icon-128.png`).
 - README.md: Comprehensive Traditional Chinese technical documentation with Mermaid diagrams, schemas, and developer guide.
 - llms.txt: Structured technical specifications for AI agents and LLM/RAG indexing pipelines.
 
@@ -85,7 +85,7 @@ interface SavedArticle {
 ### Removed in 2.1.0 (Breaking Change)
 - The `codeBlocks: CodeBlock[]` and `codeCount: number` fields, the `CodeBlock` interface, and all related UI (code cards, code search, code copy buttons, and the code import field) were removed.
 - The extraction logic had been unreachable since the embed-dialog capture flow replaced the legacy save flow, so newly saved records always contained an empty array.
-- Importing an older backup no longer preserves these fields, and code text is no longer part of the search index. Search now matches `content`, `author`, `tags`, and `embedCode`, which is also what both search inputs now advertise.
+- Importing an older backup no longer preserves these fields, and code text is no longer part of the search index. Since 2.2.1, search matches `content`, `author`, `tags`, and the path part of `postLink` (without the domain), which is also what both search inputs advertise; `embedCode` was searched before that, but its fixed official boilerplate made terms such as "threads" match every post.
 - Follow-up cleanup: `refreshEmbedCode` and its private `buildThreadsEmbedCode` copy were deleted from popup.js because their button had already been removed from the markup, and the `lastUpdated` field they wrote was dropped from the schema. Exports and imports never carried it; only records saved by older versions may still hold a stale value, which nothing reads.
 
 ## Key Concepts & Algorithms
@@ -118,7 +118,7 @@ interface SavedArticle {
 ### 5. Live Preview Protocol & Dynamic Height Adaptation
 - Dual-tab interface supporting Official Embed preview and Raw Source/Metadata inspection.
 - Fixed preview width of 658px (official Threads standard). The multi-device width switcher was removed in 2.1.0.
-- Height adaptation: because the official `/embed` page does not report its own height, `content.js` is injected into the preview iframe (`all_frames: true`) and measures the `.Embed` container via ResizeObserver/MutationObserver, media `load`/`loadeddata`/`error` events, and 8 staged re-measurements (50ms to 4000ms), posting `{ type: 'THREADS_EMBED_RESIZE', height }` to the parent window.
+- Height adaptation: because the official `/embed` page does not report its own height, `content.js` is injected into the preview iframe (`all_frames: true`) and measures the `.Embed` container with a ResizeObserver on that container and on the body's first child (a childList-only MutationObserver re-attaches it when the container is replaced). Measurements are coalesced to at most one per animation frame, and `{ type: 'THREADS_EMBED_RESIZE', height }` is posted to the parent window only when the height changes.
 - The dashboard validates `event.origin` against `threads.net`, `threads.com`, and `instagram.com`, also accepts the official `MEASURE` payload shape, and applies heights between 100px and 5000px.
 - Explicit load states: loading spinner, 10-second timeout state, and load-failure state, the latter two offering a retry button. Posts without a usable link show a non-retryable message pointing to the Raw Source tab.
 - Keyboard navigation: ESC to close, Left Arrow / Right Arrow for previous/next post navigation.
@@ -126,8 +126,9 @@ interface SavedArticle {
 ### 6. Background Sequential Update Queue
 - Queue scope: the selected posts when any checkbox is checked, otherwise the current filtered and sorted list.
 - Executes updates sequentially inside a single reusable hidden tab (`chrome.tabs.update`) to eliminate rate limiting or high CPU usage. The tab is closed on extraction failure and in the `finally` block once the queue ends.
-- No waiting limits: `waitForTabNavigation` resolves only on `status === 'complete'` or tab removal, and the injected extractor polls every 80ms until data is found or the post is classified as expired.
-- Supports pause, resume, and cancellation signals; results are written back to `chrome.storage.local` after every single post, so partial progress is never lost.
+- Safety cap: `fetchPostInfoWithReusableTab` waits at most 60 seconds (`POST_FETCH_TIMEOUT_MS`) for navigation plus extraction. A timeout returns `null`, which counts as a failure and closes the worker tab; it never marks the post as expired. The injected extractor runs its check from a `MutationObserver`, at most once per 80ms (`POST_INFO_CHECK_INTERVAL_MS`), so it reacts as soon as the page renders and is not slowed by background-tab timer throttling.
+- Supports pause, resume, and cancellation signals. Results are persisted every 20 posts (`UPDATE_PERSIST_BATCH_SIZE`), when pausing, and when the queue ends. Each write first reads the latest `savedArticles`, merges by `id` (keeping the in-memory updated objects and taking in posts added or removed elsewhere), then writes, so posts saved on Threads during the queue are not overwritten. Closing the page mid-run loses at most the last 19 unsaved updates.
+- During the run only the updated card and the statistics are re-rendered; filters, clouds, and the full list refresh once the queue ends.
 - Automatically marks posts as expired on redirect, post-not-found (404/deleted), or platform fallback summary, and restores them to active once accessible again.
 
 ### 7. 6 Filter Dimensions & 6 Sorting Rules
@@ -152,6 +153,9 @@ interface SavedArticle {
 - Toast containers and injected Threads notifications are live regions (`role="status"` / `aria-live="polite"`, escalating to `role="alert"` / `assertive` for errors). Error messages also stay visible longer: 5 seconds for panel toasts and 6 seconds for injected Threads notifications, versus 2.5 seconds for regular messages.
 - Tag and author cloud badges are `button` elements with `aria-pressed` reflecting the active filter.
 - Search inputs use a 180ms debounce (`SEARCH_DEBOUNCE_MS`); clouds display the top 15 entries (`CLOUD_VISIBLE_LIMIT`) with an overflow note.
+- Lists render in batches: 60 cards at a time in the dashboard and 30 in the popup (`RENDER_BATCH_SIZE`). A "show more" button at the end loads the next batch when clicked or when an IntersectionObserver sees it near the viewport; clicking it moves focus to the first new card. Card actions are handled by delegated listeners on the list container, select-all and clear-selection update rendered cards in place, and dashboard cards use `content-visibility: auto`.
+- Search matches `content`, `author`, `tags`, and the path part of `postLink` (`/@author/post/CODE`, without the domain), so a handle or post code finds the post. Each post's lowercased search text is cached in a WeakMap and invalidated when the update queue changes that post. Sorting precomputes one key per post and compares author names with a shared `Intl.Collator('zh-TW')`.
+- Both the popup and the dashboard listen to `chrome.storage.onChanged` and merge external changes by `id`. Events caused by their own writes are recognized by the written id list and ignored.
 - Contrast is raised to 4.5:1, undersized hit targets are enlarged to at least 24x24px, font sizes are floored at 12px, and all three stylesheets honor `prefers-reduced-motion: reduce`.
 
 ## Export & Import Specifications
@@ -204,7 +208,7 @@ All three exports are selection-aware: when posts are checked only those are exp
 - Modes: Merge (deduplicates on `postLink` and appends new posts to the end of the list) or Overwrite (replaces the entire database, gated behind a second confirmation modal).
 
 ## Security & Content Security Policy (CSP)
-- Permissions: `storage`, `tabs`, `scripting`
+- Permissions: `storage`, `unlimitedStorage`, `tabs`, `scripting`
 - Host Permissions: `https://www.threads.com/*`, `https://threads.com/*`, `https://www.threads.net/*`, `https://threads.net/*`
 - CSP Headers: `script-src 'self'; object-src 'self'; frame-src https://www.threads.com https://www.threads.net https://*.threads.com https://*.threads.net;` (No inline scripts, no remote CDN scripts)
 - PostMessage Security: Strict origin allowlist (`threads.net`, `threads.com`, `instagram.com`) plus a bounded height range on incoming iframe resize messages.
