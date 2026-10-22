@@ -57,7 +57,7 @@
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <label class="sr-only" for="searchInput">搜尋內文、作者、標籤或內嵌代碼</label>
+          <label class="sr-only" for="searchInput">搜尋內文、作者、標籤或貼文連結</label>
           <input type="text" id="searchInput" placeholder="搜尋內文、作者、標籤或貼文連結...">
         </div>
       </div>
@@ -105,27 +105,27 @@
           </div>
         </div>
         <div class="tags-cloud-wrapper">
-          <div class="small-title">常用標籤</div>
-          <div class="tags-cloud" id="tagsCloud">
+          <div class="small-title" id="tagsCloudTitle">常用標籤</div>
+          <div class="tags-cloud" id="tagsCloud" role="group" aria-labelledby="tagsCloudTitle">
           </div>
         </div>
         <div class="authors-cloud-wrapper">
-          <div class="small-title">作者貼文統計</div>
-          <div class="authors-cloud" id="authorsCloud">
+          <div class="small-title" id="authorsCloudTitle">作者貼文統計</div>
+          <div class="authors-cloud" id="authorsCloud" role="group" aria-labelledby="authorsCloudTitle">
           </div>
         </div>
       </div>
       <div class="sidebar-section">
         <h2 class="sidebar-title">備份與維護</h2>
         <div class="actions-grid">
-          <button class="btn btn-primary" id="exportBtn">
-            匯出 JS 嵌入代碼<span class="btn-hint">僅嵌入碼，適合直接貼進網頁</span>
+          <button class="btn btn-primary" id="exportBtn" aria-describedby="exportBtnHint">
+            匯出 JS 嵌入代碼<span class="btn-hint" id="exportBtnHint" aria-hidden="true">僅嵌入碼，適合直接貼進網頁</span>
           </button>
-          <button class="btn btn-primary" id="exportFeaturedBtn">
-            匯出精選資料<span class="btn-hint">config.js 精選貼文格式</span>
+          <button class="btn btn-primary" id="exportFeaturedBtn" aria-describedby="exportFeaturedBtnHint">
+            匯出精選資料<span class="btn-hint" id="exportFeaturedBtnHint" aria-hidden="true">config.js 精選貼文格式</span>
           </button>
-          <button class="btn btn-primary" id="exportFullBtn">
-            匯出完整資料<span class="btn-hint">含時間、作者、內文的完整備份</span>
+          <button class="btn btn-primary" id="exportFullBtn" aria-describedby="exportFullBtnHint">
+            匯出完整資料<span class="btn-hint" id="exportFullBtnHint" aria-hidden="true">含時間、作者、內文的完整備份</span>
           </button>
           <button class="btn id-btn" id="importBtn">匯入資料檔案</button>
         </div>
@@ -167,6 +167,7 @@
           <button class="btn btn-small btn-danger" id="batchDeleteBtn" disabled>批次刪除</button>
         </div>
       </div>
+      <h2 class="sr-only" id="articleListHeading" tabindex="-1">貼文列表</h2>
       <div class="grid-container" id="articlesContainer">
         <div class="empty-state">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -179,6 +180,7 @@
           <p class="empty-description">請在 Threads 上有程式碼的貼文旁，點選「取得內嵌程式碼」，擴充功能會自動儲存至此面板。</p>
         </div>
       </div>
+      <div class="load-more-container" id="loadMoreContainer"></div>
     </main>
   </div>
   <div class="modal-overlay" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
@@ -207,13 +209,16 @@
       <div class="modal-body">
         <p id="importModalMessage">偵測到已準備匯入的文章資料。請選擇匯入模式：</p>
         <div class="import-mode-options">
-          <button type="button" class="import-option" id="importModeMerge">
-            <span class="import-option-title">合併資料<span class="import-option-tag">推薦</span></span>
-            <span class="import-option-desc">與現有資料進行比對，僅加入不存在的貼文，不會覆蓋現有內容。</span>
+          <button type="button" class="import-option" id="importModeMerge" aria-labelledby="importModeMergeTitle"
+            aria-describedby="importModeMergeDesc">
+            <span class="import-option-title" id="importModeMergeTitle">合併資料<span class="sr-only">（</span><span
+                class="import-option-tag">推薦</span><span class="sr-only">）</span></span>
+            <span class="import-option-desc" id="importModeMergeDesc">與現有資料進行比對，僅加入不存在的貼文，不會覆蓋現有內容。</span>
           </button>
-          <button type="button" class="import-option import-option-danger" id="importModeOverwrite">
-            <span class="import-option-title">完全覆寫</span>
-            <span class="import-option-desc">清除所有現有儲存的貼文，以匯入的檔案內容完全取代。此動作無法復原。</span>
+          <button type="button" class="import-option import-option-danger" id="importModeOverwrite"
+            aria-labelledby="importModeOverwriteTitle" aria-describedby="importModeOverwriteDesc">
+            <span class="import-option-title" id="importModeOverwriteTitle">完全覆寫</span>
+            <span class="import-option-desc" id="importModeOverwriteDesc">清除所有現有儲存的貼文，以匯入的檔案內容完全取代。此動作無法復原。</span>
           </button>
         </div>
       </div>
@@ -257,7 +262,7 @@
         </div>
       </div>
       <div class="preview-modal-body">
-        <div class="preview-pane active" id="paneEmbed" role="tabpanel" aria-labelledby="previewTabEmbed">
+        <div class="preview-pane active" id="paneEmbed" role="tabpanel" aria-labelledby="previewTabEmbed" tabindex="0">
           <div class="preview-iframe-wrapper" id="previewIframeWrapper">
             <div class="preview-loading-spinner" id="previewLoadingSpinner">
               <div class="spinner"></div>
@@ -278,7 +283,7 @@
               title="Threads 貼文即時預覽框架"></iframe>
           </div>
         </div>
-        <div class="preview-pane" id="paneRaw" role="tabpanel" aria-labelledby="previewTabRaw" hidden>
+        <div class="preview-pane" id="paneRaw" role="tabpanel" aria-labelledby="previewTabRaw" tabindex="0" hidden>
           <div class="preview-raw-view" id="previewRawView"></div>
         </div>
       </div>
@@ -309,6 +314,7 @@
     </div>
   </div>
   <div class="toast-container" id="toastContainer" role="status" aria-live="polite" aria-atomic="false"></div>
+  <div class="sr-only" id="liveStatus" role="status" aria-live="polite" aria-atomic="true"></div>
   <input type="file" id="importFileInput" accept=".js,.json" class="is-hidden" title="匯入資料檔案">
   <script src="article-store.js"></script>
   <script src="dashboard.js"></script>

@@ -7,7 +7,7 @@
 **[前往介紹頁](https://scorpio-meow.github.io/Threads-embedded-code/)**：功能導覽、互動清洗示範與安裝教學
 
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-D12F35?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threads-embedded-code/)
-[![Version](https://img.shields.io/badge/version-2.4.0-blue?style=for-the-badge)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-2.4.1-blue?style=for-the-badge)](./manifest.json)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
@@ -255,6 +255,8 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 - **清楚的焦點外框**：鍵盤焦點以 2px 實線外框標示（淺色 `#2563eb`、深色 `#60a5fa`），與周圍背景的對比至少 4.6:1。
 - **深色與高對比模式**：控制面板右上角的「外觀」選單可選跟隨系統、淺色或深色，設定存在 `chrome.storage.local`，Popup 與 Threads 頁面上的通知一併套用；顏色集中定義在 `:root` 的 CSS 變數；Windows 高對比模式（`forced-colors`）下，焦點外框、勾選框、選取狀態與進度條改用系統顏色標示。
 - **可操作的標籤與作者徽章**：統計雲徽章由 `span` 改為 `button` 並標註 `aria-pressed`，可用鍵盤聚焦並切換篩選狀態。
+- **螢幕閱讀器結構**：貼文卡片是清單項目、作者名稱是標題；卡片的勾選框與操作按鈕名稱帶上作者與發文時間（例如「刪除：user174 於 18 小時前發布的貼文」），相對時間另附完整日期時間。搜尋、篩選與勾選後會朗讀結果數量（「找到 5 篇貼文」「已選取 3 篇」）。
+- **焦點不遺失**：點徽章篩選、刪除、復原或背景更新重畫卡片後，焦點留在原控制項，或移到同一位置的下一篇、還原的那篇，不會跳回頁首。
 - **視覺與動態友善**：文字對比度提升至 4.5:1，偏小的點擊目標放大至 24×24px 以上，字級下限拉高到 12px；三份樣式表皆支援 `prefers-reduced-motion: reduce`，在系統要求減少動態時停用轉場動畫。
 - **輸入防抖**：兩個介面的搜尋框皆加入 180ms debounce，資料量大時輸入不再卡頓。
 
@@ -892,13 +894,31 @@ cd threads-embedded-code
 - **嚴格 CSP 相容**：所有 HTML 頁面及注入的腳本**禁止使用行內樣式 (inline style) 與行內事件監聽器**（例如 `onclick="..."`），必須使用 `addEventListener` 進行事件綁定。
 - **欄位擴展規範**：若在 `content.js` 中新增或修改了儲存欄位，請務必同步更新本 README 的 [資料模型與儲存 Schema](#資料模型與儲存-schema) 區段、[llms.txt](./llms.txt) 與匯出/匯入模組。
 - **禁用原生對話框**：`confirm()`、`alert()` 與 `prompt()` 一律以頁內 Modal 取代。Popup 失焦時原生對話框會連同 Popup 一併關閉並回傳預設值，極易造成誤觸破壞性操作。
-- **無障礙基本要求**：新增的 Modal 需具備 `role="dialog"`、`aria-modal="true"`、焦點鎖定與焦點還原；可點擊元素請使用 `button` 並維持 24×24px 以上的點擊區域；停用狀態請使用 `disabled` 而非僅靠 `pointer-events: none`。
+- **無障礙基本要求**：新增的 Modal 需具備 `role="dialog"`、`aria-modal="true"`、焦點鎖定與焦點還原；可點擊元素請使用 `button` 並維持 24×24px 以上的點擊區域；停用狀態請使用 `disabled` 而非僅靠 `pointer-events: none`。卡片上重複出現的按鈕要在名稱帶上是哪一篇；重畫清單時保留焦點；對話框內的元件不要用 `transition: all`。
 
 ---
 
 ## 版本更新紀錄 (Changelog)
 
 本專案嚴格遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 格式規範。
+
+### [2.4.1] - 2026-10-23
+
+#### 改善
+- 貼文卡片改為清單結構，作者名稱改為標題，螢幕閱讀器可用標題或清單快速鍵逐篇跳；Popup 補上 `header` 與 `main` 區塊，兩個介面的貼文區都補上「貼文列表」標題。
+- 卡片的勾選框與「即時預覽」「查看原文」「複製內嵌代碼」「刪除」按鈕，名稱帶上作者與發文時間（例如「刪除：user174 於 18 小時前發布的貼文」），用 Tab 或元件清單瀏覽時分得出是哪一篇。原本勾選框完全沒有名稱，只會念「核取方塊」。
+- 搜尋、篩選與勾選後朗讀結果，例如「找到 5 篇貼文」「找不到符合的貼文」「已選取 3 篇」。
+- 「18 小時前」這類相對時間另外提供完整日期時間給螢幕閱讀器，滑鼠停留時也會顯示。
+- 按鈕名稱與補充說明分開：控制面板的匯出按鈕只念名稱，說明改成描述；Popup 的三個匯出按鈕念成「匯出：完整備份」；匯入方式念成「合併資料（推薦）」，說明改成描述，不再和名稱連在一起。
+- 展開按鈕改為「展開全文」與「收起全文」，不再同時念出按鈕文字與展開狀態。
+- Popup 中小於 12px 的文字（時間、標籤、小按鈕、匯出說明、推薦標記）提高到 12px，與無障礙聲明的字級下限一致。
+
+#### 修正
+- 修復操作後鍵盤焦點跑回頁首：點標籤雲或作者雲的徽章、點卡片上的標籤、刪除、批次刪除、按「復原」，以及背景更新重畫卡片時，焦點原本會遺失。現在焦點會留在原本的控制項；貼文不見時移到同一位置的下一篇，復原後移到還原的那篇。
+- 修復控制面板的確認與匯入對話框開啟時，焦點有時沒有移進對話框：`.btn` 等元件使用 `transition: all`，對話框切換 `visibility` 時按鈕也跟著轉場，開啟後的第一個畫面仍是隱藏狀態，無法聚焦。對話框中會出現的元件改為只對外觀屬性轉場。
+- 修復淺色模式「即時預覽」按鈕與徽章的文字對比不足（約 3.6:1 至 4.1:1），`--info-color` 改為 `#0369a1`（5.2:1 以上）。
+- 修復搜尋框提供給螢幕閱讀器的名稱與畫面不一致：名稱仍寫「內嵌代碼」，實際搜尋的是貼文連結。
+- 修復即時預覽的內容與程式碼區塊無法用鍵盤捲動：分頁面板與程式碼區塊改為可聚焦；中繼資料的標題由 `h5` 改為 `h3`，表格左欄改為列標題。
 
 ### [2.4.0] - 2026-10-23
 

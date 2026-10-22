@@ -53,8 +53,8 @@
     --danger-tint-hover: #fff1f1;
     --warning-tint: #fff9ef;
     --warning-tint-hover: #fff3df;
-    --info-color: #0284c7;
-    --info-color-hover: #0369a1;
+    --info-color: #0369a1;
+    --info-color-hover: #075985;
     --info-tint: #f0f9ff;
     --info-tint-hover: #e0f2fe;
     --paused-text: #475569;
@@ -601,7 +601,7 @@ body {
     font-weight: 700;
     border-radius: 12px;
     cursor: pointer;
-    transition: all var(--transition-speed);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed), background var(--transition-speed), border-color var(--transition-speed), color var(--transition-speed), opacity var(--transition-speed);
     border: 1px solid var(--panel-border);
     background: var(--btn-bg);
     color: var(--text-primary);
@@ -912,8 +912,12 @@ body {
     background: linear-gradient(180deg, rgba(37, 99, 235, 0.05), rgba(37, 99, 235, 0.02));
 }
 
+.load-more-container:empty {
+    display: none;
+}
+
 .load-more-btn {
-    grid-column: 1 / -1;
+    width: 100%;
 }
 
 .card-checkbox {
@@ -1227,7 +1231,7 @@ body {
     padding: 16px;
     border-radius: 16px;
     cursor: pointer;
-    transition: all var(--transition-speed);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed), background var(--transition-speed), border-color var(--transition-speed), color var(--transition-speed), opacity var(--transition-speed);
 }
 
 .import-option:hover {
@@ -1557,7 +1561,7 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all var(--transition-speed);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed), background var(--transition-speed), border-color var(--transition-speed), color var(--transition-speed), opacity var(--transition-speed);
 }
 
 .preview-nav-btn:hover:not(:disabled) {
@@ -1608,7 +1612,7 @@ body {
     border: none;
     border-radius: 7px;
     cursor: pointer;
-    transition: all var(--transition-speed);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed), background var(--transition-speed), border-color var(--transition-speed), color var(--transition-speed), opacity var(--transition-speed);
 }
 
 .preview-tab:hover {
@@ -1766,7 +1770,7 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
-.preview-raw-card h5 {
+.preview-raw-card h3 {
     font-size: 13px;
     font-weight: 800;
     color: var(--text-secondary);
@@ -1794,15 +1798,17 @@ body {
     font-size: 13px;
 }
 
+.preview-meta-table th,
 .preview-meta-table td {
     padding: 10px 14px;
     border-bottom: 1px solid var(--surface-muted);
 }
 
-.preview-meta-table td:first-child {
+.preview-meta-table th {
     font-weight: 700;
     color: var(--text-secondary);
     width: 140px;
+    text-align: left;
 }
 
 .preview-meta-table td:last-child {
@@ -1848,7 +1854,7 @@ body {
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: all var(--transition-speed);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed), background var(--transition-speed), border-color var(--transition-speed), color var(--transition-speed), opacity var(--transition-speed);
     text-decoration: none;
     white-space: nowrap;
     -webkit-user-select: none;
@@ -1968,6 +1974,8 @@ body {
 .preview-nav-btn:focus-visible,
 .modal-close-btn:focus-visible,
 .preview-action-btn:focus-visible,
+.preview-pane:focus-visible,
+.preview-raw-content:focus-visible,
 .threads-link:focus-visible,
 .checkbox-container input:focus-visible~.checkmark {
     outline: 2px solid var(--focus-color);

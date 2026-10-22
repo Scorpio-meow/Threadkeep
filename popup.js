@@ -5,7 +5,10 @@ const TOAST_MS_PER_CHAR = 120;
 const UNDO_TOAST_DURATION_MS = 8000;
 const RENDER_BATCH_SIZE = 30;
 const LOAD_MORE_ROOT_MARGIN = '300px';
+const ANNOUNCE_DELAY_MS = 100;
+const RELATIVE_TIME_PATTERN = /前$|^剛剛$/;
 let searchDebounceTimer = null;
+let announceTimer = null;
 let allArticles = [];
 let filteredArticles = [];
 let currentSort = 'savedAt-desc';
@@ -84,7 +87,7 @@ function setupEventListeners() {
   document.getElementById('searchInput').addEventListener('input', () => {
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
-      applyFilters();
+      applyFilters({ announceResults: true });
     }, SEARCH_DEBOUNCE_MS);
   });
   const filterSelect = document.getElementById('filterSelect');
@@ -93,14 +96,14 @@ function setupEventListeners() {
       currentFilter = e.target.value;
       currentFilterValue = '';
       updateFilterValueOptions();
-      applyFilters();
+      applyFilters({ announceResults: true });
     });
   }
   const filterValueSelect = document.getElementById('filterValueSelect');
   if (filterValueSelect) {
     filterValueSelect.addEventListener('change', (e) => {
       currentFilterValue = e.target.value;
-      applyFilters();
+      applyFilters({ announceResults: true });
     });
   }
   document.getElementById('exportBtn').addEventListener('click', exportAllEmbedCodes);
@@ -181,6 +184,7 @@ function setupEventListeners() {
   const articlesContainer = document.getElementById('articlesContainer');
   articlesContainer.addEventListener('click', handleArticleListClick);
   articlesContainer.addEventListener('change', handleArticleListChange);
+  document.getElementById('loadMoreContainer').addEventListener('click', handleLoadMoreClick);
   updateFilterValueOptions();
 }
 function getArticleSearchText(article) {
@@ -195,7 +199,7 @@ function getArticleSearchText(article) {
   }
   return text;
 }
-function applyFilters({ keepRendered = false } = {}) {
+function applyFilters({ keepRendered = false, announceResults = false } = {}) {
   const searchTerm = (document.getElementById('searchInput')?.value || '').toLowerCase();
   filteredArticles = allArticles.filter(article => {
     if (!matchesFilter(article)) {
@@ -205,6 +209,63 @@ function applyFilters({ keepRendered = false } = {}) {
   });
   sortArticles();
   renderArticles({ keepRendered });
+  if (announceResults) {
+    announce(filteredArticles.length === 0 ? '找不到符合的貼文' : `找到 ${filteredArticles.length} 篇貼文`);
+  }
+}
+function announce(message) {
+  const region = document.getElementById('liveStatus');
+  if (!region) return;
+  clearTimeout(announceTimer);
+  region.textContent = '';
+  announceTimer = setTimeout(() => {
+    region.textContent = message;
+  }, ANNOUNCE_DELAY_MS);
+}
+function announceSelection() {
+  announce(selectedArticleIds.size > 0 ? `已選取 ${selectedArticleIds.size} 篇` : '已取消全部選取');
+}
+function isFocusLost() {
+  const active = document.activeElement;
+  return !active || active === document.body || !active.isConnected || active.disabled;
+}
+function getCardFocusSelector(el) {
+  if (el.classList.contains('article-checkbox')) return '.article-checkbox';
+  if (el.dataset.action) return `[data-action="${el.dataset.action}"]`;
+  return el.tagName.toLowerCase();
+}
+function captureCardFocus(container) {
+  const active = document.activeElement;
+  const card = active && container.contains(active) ? active.closest('.article-card') : null;
+  if (!card) return null;
+  const cards = Array.from(container.querySelectorAll('.article-card'));
+  return { id: card.dataset.id, index: cards.indexOf(card), selector: getCardFocusSelector(active) };
+}
+function restoreCardFocus(container, focus) {
+  if (!focus) return;
+  const card = container.querySelector(`.article-card[data-id="${CSS.escape(focus.id)}"]`);
+  const target = card ? card.querySelector(focus.selector) : null;
+  if (target) {
+    target.focus();
+    return;
+  }
+  focusArticleCardAt(focus.index);
+}
+function focusArticleCardAt(index) {
+  const cards = document.querySelectorAll('#articlesContainer .article-card');
+  const card = cards.length > 0 ? cards[Math.min(Math.max(index, 0), cards.length - 1)] : null;
+  const target = card ? card.querySelector('.article-checkbox') : document.getElementById('articleListHeading');
+  if (target) target.focus();
+}
+function focusArticleCard(articleId) {
+  const card = document.querySelector(`#articlesContainer .article-card[data-id="${CSS.escape(articleId)}"]`);
+  const target = card ? card.querySelector('.article-checkbox') : document.getElementById('articleListHeading');
+  if (target) target.focus();
+}
+function focusRestoredArticle(articleId) {
+  if (isFocusLost() || document.activeElement.closest('#toastContainer')) {
+    focusArticleCard(articleId);
+  }
 }
 function matchesFilter(article) {
   switch (currentFilter) {
@@ -291,13 +352,25 @@ function sortArticles() {
   });
   filteredArticles = keyed.map(entry => entry.article);
 }
+function setArticleListSemantics(container, hasCards) {
+  if (hasCards) {
+    container.setAttribute('role', 'list');
+    container.setAttribute('aria-labelledby', 'articleListHeading');
+  } else {
+    container.removeAttribute('role');
+    container.removeAttribute('aria-labelledby');
+  }
+}
 function renderArticles({ keepRendered = false } = {}) {
   const container = document.getElementById('articlesContainer');
   const countElement = document.getElementById('articleCount');
   countElement.textContent = `${filteredArticles.length} 篇`;
   if (loadMoreObserver) loadMoreObserver.disconnect();
+  const focus = captureCardFocus(container);
+  document.getElementById('loadMoreContainer').replaceChildren();
   const targetCount = keepRendered ? Math.max(renderedCount, RENDER_BATCH_SIZE) : RENDER_BATCH_SIZE;
   renderedCount = 0;
+  setArticleListSemantics(container, filteredArticles.length > 0);
   if (filteredArticles.length === 0) {
     container.innerHTML = '';
     const empty = document.createElement('div');
@@ -317,15 +390,17 @@ function renderArticles({ keepRendered = false } = {}) {
       empty.appendChild(help);
     }
     container.appendChild(empty);
+    restoreCardFocus(container, focus);
     return;
   }
   container.innerHTML = '';
   appendArticleCards(container, targetCount);
   updateSelectionUI();
+  restoreCardFocus(container, focus);
 }
 function appendArticleCards(container, count) {
-  const previousButton = container.querySelector('.load-more-btn');
-  if (previousButton) previousButton.remove();
+  const loadMoreContainer = document.getElementById('loadMoreContainer');
+  loadMoreContainer.replaceChildren();
   const fragment = document.createDocumentFragment();
   const end = Math.min(filteredArticles.length, renderedCount + count);
   let firstNewCard = null;
@@ -342,7 +417,7 @@ function appendArticleCards(container, count) {
     loadMoreBtn.className = 'btn load-more-btn';
     loadMoreBtn.dataset.action = 'load-more';
     loadMoreBtn.textContent = `顯示更多（還有 ${filteredArticles.length - renderedCount} 篇）`;
-    fragment.appendChild(loadMoreBtn);
+    loadMoreContainer.appendChild(loadMoreBtn);
   }
   container.appendChild(fragment);
   if (loadMoreObserver) loadMoreObserver.disconnect();
@@ -350,7 +425,7 @@ function appendArticleCards(container, count) {
     if (!loadMoreObserver) {
       loadMoreObserver = new IntersectionObserver((entries) => {
         if (entries.some(entry => entry.isIntersecting)) renderMoreArticles();
-      }, { root: container, rootMargin: LOAD_MORE_ROOT_MARGIN });
+      }, { root: document.getElementById('articlesScroll'), rootMargin: LOAD_MORE_ROOT_MARGIN });
     }
     loadMoreObserver.observe(loadMoreBtn);
   }
@@ -361,34 +436,55 @@ function renderMoreArticles() {
   if (!container) return null;
   return appendArticleCards(container, RENDER_BATCH_SIZE);
 }
+function getArticleLabel(article) {
+  const author = article.author || '未填寫作者';
+  const postedAt = article.timestampTitle || (article.timestamp ? formatTime(article.timestamp) : '');
+  return postedAt ? `${author} 於 ${postedAt}發布的貼文` : `${author} 的貼文`;
+}
+function formatFullTime(isoString) {
+  const date = new Date(isoString);
+  if (!isoString || isNaN(date.getTime())) return '';
+  return date.toLocaleString('zh-TW', { dateStyle: 'long', timeStyle: 'short' });
+}
+function createTimeLine(label, displayText, isoString) {
+  const line = document.createElement('div');
+  line.className = 'time';
+  line.textContent = `${label}：${displayText}`;
+  const fullTime = formatFullTime(isoString);
+  line.title = fullTime || displayText;
+  if (fullTime && RELATIVE_TIME_PATTERN.test(displayText)) {
+    const srText = document.createElement('span');
+    srText.className = 'sr-only';
+    srText.textContent = `（${fullTime}）`;
+    line.appendChild(srText);
+  }
+  return line;
+}
 function createArticleCard(article) {
   const card = document.createElement('div');
   card.className = 'article-card';
+  card.setAttribute('role', 'listitem');
   if (selectedArticleIds.has(article.id)) {
     card.classList.add('selected');
   }
   card.dataset.id = article.id;
+  const articleLabel = getArticleLabel(article);
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.className = 'article-checkbox';
   checkbox.checked = selectedArticleIds.has(article.id);
   checkbox.dataset.articleId = article.id;
+  checkbox.setAttribute('aria-label', `選取：${articleLabel}`);
   card.appendChild(checkbox);
   const header = document.createElement('div');
   header.className = 'article-header';
-  const authorEl = document.createElement('div');
+  const authorEl = document.createElement('h3');
   authorEl.className = 'author';
-  authorEl.textContent = article.author || '';
+  authorEl.textContent = article.author || '未填寫作者';
   const timeInfo = document.createElement('div');
   timeInfo.className = 'time-info';
-  const timePost = document.createElement('div');
-  timePost.className = 'time';
-  timePost.title = article.timestampTitle || article.timestamp || '';
-  timePost.textContent = '發文：' + (article.timestampTitle ? article.timestampTitle : formatTime(article.timestamp));
-  const timeSaved = document.createElement('div');
-  timeSaved.className = 'time';
-  timeSaved.title = article.savedAt || '';
-  timeSaved.textContent = '儲存：' + formatTime(article.savedAt);
+  const timePost = createTimeLine('發文', article.timestampTitle || formatTime(article.timestamp), article.timestamp);
+  const timeSaved = createTimeLine('儲存', formatTime(article.savedAt), article.savedAt);
   timeInfo.appendChild(timePost);
   timeInfo.appendChild(timeSaved);
   header.appendChild(authorEl);
@@ -428,6 +524,7 @@ function createArticleCard(article) {
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   link.textContent = '查看原文';
+  link.setAttribute('aria-label', `查看原文：${articleLabel}`);
   actions.appendChild(link);
   if (article.embedCode) {
     const copyEmbedBtn = document.createElement('button');
@@ -435,6 +532,7 @@ function createArticleCard(article) {
     copyEmbedBtn.setAttribute('data-article-id', article.id);
     copyEmbedBtn.dataset.action = 'copy-embed';
     copyEmbedBtn.textContent = '複製內嵌程式碼';
+    copyEmbedBtn.setAttribute('aria-label', `複製內嵌程式碼：${articleLabel}`);
     actions.appendChild(copyEmbedBtn);
   }
   const deleteBtn = document.createElement('button');
@@ -442,6 +540,7 @@ function createArticleCard(article) {
   deleteBtn.setAttribute('data-article-id', article.id);
   deleteBtn.dataset.action = 'delete';
   deleteBtn.textContent = '刪除';
+  deleteBtn.setAttribute('aria-label', `刪除：${articleLabel}`);
   actions.appendChild(deleteBtn);
   card.appendChild(actions);
   return card;
@@ -450,12 +549,6 @@ function handleArticleListClick(e) {
   const actionEl = e.target.closest('[data-action]');
   if (!actionEl || !e.currentTarget.contains(actionEl)) return;
   switch (actionEl.dataset.action) {
-    case 'load-more': {
-      const firstNewCard = renderMoreArticles();
-      const firstFocusable = firstNewCard ? firstNewCard.querySelector('input, button, a') : null;
-      if (firstFocusable) firstFocusable.focus();
-      break;
-    }
     case 'copy-embed':
       copyEmbed(actionEl.dataset.articleId);
       break;
@@ -463,6 +556,12 @@ function handleArticleListClick(e) {
       deleteArticle(actionEl.dataset.articleId);
       break;
   }
+}
+function handleLoadMoreClick(e) {
+  if (!e.target.closest('[data-action="load-more"]')) return;
+  const firstNewCard = renderMoreArticles();
+  const firstFocusable = firstNewCard ? firstNewCard.querySelector('input, button, a') : null;
+  if (firstFocusable) firstFocusable.focus();
 }
 function handleArticleListChange(e) {
   const checkbox = e.target;
@@ -477,6 +576,7 @@ function handleArticleListChange(e) {
     card.classList.remove('selected');
   }
   updateSelectionUI();
+  announceSelection();
 }
 function syncRenderedSelection() {
   document.querySelectorAll('#articlesContainer .article-card').forEach(card => {
@@ -517,11 +617,13 @@ function toggleSelectAll(checked) {
   }
   syncRenderedSelection();
   updateSelectionUI();
+  announceSelection();
 }
 function clearSelection() {
   selectedArticleIds.clear();
   syncRenderedSelection();
   updateSelectionUI();
+  announceSelection();
 }
 function formatTime(isoString) {
   if (!isoString) return '未知';
@@ -553,6 +655,7 @@ async function deleteArticle(articleId) {
   showUndoToast('已刪除 1 篇貼文', async () => {
     await restoreDeletedArticles([article]);
     applyFilters({ keepRendered: true });
+    focusRestoredArticle(article.id);
     showToast('已復原');
   });
 }
@@ -848,6 +951,7 @@ async function clearAllArticles() {
   showUndoToast(`已清除 ${snapshot.length} 篇貼文`, async () => {
     await restoreDeletedArticles(snapshot);
     applyFilters();
+    focusRestoredArticle(snapshot[0].id);
     showToast('已復原全部貼文');
   });
 }
