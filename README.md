@@ -200,7 +200,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
   - **原始碼與中繼資料 (Embed Code & Metadata)**：直接檢視乾淨的 `<blockquote>` 代碼與貼文中繼屬性對照表格。
 - **官方標準寬度與高度自適應**：預覽寬度固定為 Threads 官方標準的 658px；高度由注入至 iframe 的 Content Script 量測 `.Embed` 容器後回報，長短貼文皆精準貼合，不留多餘空白或捲軸。
 - **實際載入狀態回饋**：區分「載入中」、「載入逾時（10 秒）」與「載入失敗」三種狀態，逾時或失敗時顯示錯誤說明與「重新載入」按鈕；若該貼文沒有可用連結，則直接提示改看「原始碼與中繼資料」分頁。Threads 不提供內嵌的貼文（`/embed` 回 HTTP 500）會顯示中文說明，不會出現 Meta 的英文錯誤頁。
-- **帶著登入狀態預覽**：預覽從 `www.threads.com` 載入，會沿用瀏覽器的 Threads 登入狀態；只開放登入者觀看的貼文（例如被列為敏感內容），登入 Threads 後也能預覽，但這類貼文的內嵌碼放到網站上，訪客仍然看不到。
+- **帶著登入狀態預覽**：預覽從 `www.threads.com` 載入，會沿用瀏覽器的 Threads 登入狀態；只開放登入者觀看的貼文（例如被列為敏感內容），登入 Threads 後也能預覽。這類貼文的內嵌碼放到網站上時，只有已登入 Threads、且瀏覽器允許第三方 Cookie 的訪客看得到。
 - **全方位快捷鍵與導覽**：支援鍵盤 `ESC` 關閉、左/右方向鍵無縫切換上一篇/下一篇貼文、一鍵複製內嵌碼及直接開啟原文。
 
 ### 5. 背景循序同步與失效監控佇列
@@ -589,7 +589,7 @@ Threads 官方 `/embed` 頁面只會對父視窗送出一個不帶型別的數�
 window.parent.postMessage({ type: 'THREADS_EMBED_RESIZE', height: h }, parentOrigin);
 ```
 
-Threads 不提供內嵌的貼文（已刪除、不公開，或只開放登入的使用者觀看，例如被列為敏感內容），`/embed` 會回 HTTP 500 與 Meta 的錯誤頁；這類貼文的內嵌碼放到網站上同樣顯示不出來。預覽從 `www.threads.com` 載入，會帶著瀏覽器的 Threads 登入狀態，所以只開放登入者觀看的貼文在已登入時可以正常預覽。iframe 一樣會觸發 `load`，所以 `content.js` 在 `/embed` 頁找不到 `.Embed` 容器時改送 `{ type: 'THREADS_EMBED_ERROR' }`。儀表板確認訊息來自目前的預覽 iframe 後，顯示自己的錯誤提示並隱藏錯誤頁，之後的 `load` 事件也不會再把狀態改回「已載入」。
+Threads 不提供內嵌的貼文（已刪除、不公開，或只開放登入的使用者觀看，例如被列為敏感內容），`/embed` 會回 HTTP 500 與 Meta 的錯誤頁；這類貼文的內嵌碼放到網站上，未登入 Threads 或封鎖第三方 Cookie 的訪客同樣顯示不出來。預覽從 `www.threads.com` 載入，會帶著瀏覽器的 Threads 登入狀態，所以只開放登入者觀看的貼文在已登入時可以正常預覽。iframe 一樣會觸發 `load`，所以 `content.js` 在 `/embed` 頁找不到 `.Embed` 容器時改送 `{ type: 'THREADS_EMBED_ERROR' }`。儀表板確認訊息來自目前的預覽 iframe 後，顯示自己的錯誤提示並隱藏錯誤頁，之後的 `load` 事件也不會再把狀態改回「已載入」。
 
 `content.js` 會注入所有 threads.com 框架，包括其他網站嵌入的 Threads iframe，但只有在直接父視窗是本擴充功能的頁面時才送訊息：以 `location.ancestorOrigins[0]` 的 host 比對 `chrome.runtime.id`，相符才送出，而且 `postMessage` 只指定該來源，不用 `'*'`。其他網站嵌入的 Threads iframe 不會收到 `THREADS_EMBED_RESIZE` 或 `THREADS_EMBED_ERROR`，也就看不出瀏覽器裝了本擴充功能。
 
@@ -859,7 +859,7 @@ const posts = [
 > [!NOTE]
 > **問題：即時預覽顯示「Threads 不提供這篇貼文的內嵌卡片」？**
 > - Threads 對這篇的 `/embed` 回了 HTTP 500。可能是貼文已刪除、不公開，或只開放登入的使用者觀看。
-> - 若是只開放登入者觀看，在這個瀏覽器登入 threads.com 後按「重新載入」即可預覽。這類貼文的內嵌碼放到網站上，訪客一樣看不到，只能點連結到 Threads 觀看。
+> - 若是只開放登入者觀看，在這個瀏覽器登入 threads.com 後按「重新載入」即可預覽。這類貼文的內嵌碼放到網站上時，只有已登入 Threads、且瀏覽器允許第三方 Cookie 的訪客看得到，其他訪客只能點連結到 Threads 觀看。
 > - 開發者工具裡的 `Error with Permissions-Policy header: Unrecognized feature: 'attribution-reporting'`（以及 `shared-storage`、`shared-storage-select-url`）是 Meta 回應標頭宣告了瀏覽器不認得的功能，正常的貼文也會出現，與載入失敗無關。
 
 > [!CAUTION]
@@ -930,7 +930,7 @@ cd threads-embedded-code
 - 計數、統計數字、時間與進度改用等寬數字（`tabular-nums`），數字變動時不再左右跳動；內文段落加上 `text-wrap: pretty` 避免最後一行只剩一個字；按鈕與連結裡的圖示以 `vertical-align: -0.125em` 對齊文字中線。
 - 介紹頁的介面截圖與分享圖以新樣式和同一批虛構資料重拍；功能特寫改為透明背景，直接落在介紹頁的底色上。
 - `content.js` 只在預覽 iframe 的父視窗是本擴充功能頁面時才送高度與錯誤訊息，並只送往該來源；原本在任何網站的 Threads 內嵌 iframe 裡都會對父頁面送出 `THREADS_EMBED_RESIZE`，可能干擾那些網站，也透露瀏覽器裝了本擴充功能。
-- 即時預覽改從 `www.threads.com` 載入內嵌卡片（原本是 `www.threads.net`），與 Threads 目前的網域一致。Threads 的登入狀態存在 threads.com，改網域後預覽會帶著登入狀態載入：只開放登入者觀看的貼文（例如被列為敏感內容），在已登入 Threads 的瀏覽器裡也能預覽（已在 Comet 實測）。這類貼文的內嵌碼放到一般網站上，訪客仍然看不到。
+- 即時預覽改從 `www.threads.com` 載入內嵌卡片（原本是 `www.threads.net`），與 Threads 目前的網域一致。Threads 的登入狀態存在 threads.com，改網域後預覽會帶著登入狀態載入：只開放登入者觀看的貼文（例如被列為敏感內容），在已登入 Threads 的瀏覽器裡也能預覽（已在 Comet 實測）。這類貼文的內嵌碼放到一般網站上，只有已登入 Threads、且允許第三方 Cookie 的訪客看得到。
 
 #### 修正
 - 修復 Popup 的「已選取 N 篇」與兩個介面的「篩選數值」選單永遠不會出現：`.is-hidden` 改為 `display: none !important` 後，用 `style.display` 切換的元件被蓋住。

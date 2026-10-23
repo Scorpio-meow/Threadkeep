@@ -1938,7 +1938,7 @@ function setupPreviewModalListeners() {
       if (data && data.type === 'THREADS_EMBED_ERROR') {
         if (iframe && event.source === iframe.contentWindow) {
           clearTimeout(previewLoadTimer);
-          setPreviewState('error', 'Threads 不提供這篇貼文的內嵌卡片，可能是貼文已刪除、不公開，或只開放登入的使用者觀看（例如被列為敏感內容）。若是後者，在這個瀏覽器登入 Threads 後重新載入即可預覽，但內嵌碼放到網站上，訪客一樣看不到。也可以切換到上方「原始碼與中繼資料」分頁查看已儲存的內容，或按下方「在 Threads 開啟原文」。');
+          setPreviewState('error', 'Threads 不提供這篇貼文的內嵌卡片，可能是貼文已刪除、不公開，或只開放登入的使用者觀看（例如被列為敏感內容）。若是後者，在這個瀏覽器登入 Threads 後重新載入即可預覽；內嵌碼放到網站上時，未登入 Threads 或封鎖第三方 Cookie 的訪客也會看到錯誤。也可以切換到上方「原始碼與中繼資料」分頁查看已儲存的內容，或按下方「在 Threads 開啟原文」。');
         }
         return;
       }
