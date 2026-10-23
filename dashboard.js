@@ -1317,6 +1317,7 @@ async function updateAllTimestamps() {
           continue;
         }
         const postInfo = await fetchPostInfoWithReusableTab(tabId, article.postLink);
+        applyEmbeddableResult(article, await checkEmbeddableInTab(tabId, article.postLink));
         if (postInfo) {
           if (postInfo.status === 'expired') {
             markArticleAsExpired(article, postInfo.reason);
@@ -1400,6 +1401,21 @@ async function fetchPostInfoWithReusableTab(tabId, postLink) {
     return await Promise.race([fetchPostInfoFromTab(tabId, postLink), timeout]);
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+async function checkEmbeddableInTab(tabId, postLink) {
+  const embedPath = getThreadsEmbedPath(postLink);
+  if (!embedPath) return null;
+  try {
+    const [injection] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (path) => (typeof checkEmbeddable === 'function' ? checkEmbeddable(location.origin + path) : null),
+      args: [embedPath]
+    });
+    return injection ? injection.result : null;
+  } catch (err) {
+    console.warn('[Dashboard] 內嵌檢查失敗:', err);
+    return null;
   }
 }
 async function fetchPostInfoFromTab(tabId, postLink) {
@@ -1704,7 +1720,8 @@ async function exportFeaturedData() {
       postLink: article.postLink || '',
       author: author,
       content: article.content || '',
-      tags: article.tags || []
+      tags: article.tags || [],
+      ...pickEmbeddableFields(article)
     };
   });
   const jsContent = `const posts = ${JSON.stringify(exportData, null, 4)};`;
@@ -1738,7 +1755,8 @@ async function exportFullData() {
       status: article.status || '',
       expiredAt: article.expiredAt || '',
       expiredReason: article.expiredReason || '',
-      expiredCheckedAt: article.expiredCheckedAt || ''
+      expiredCheckedAt: article.expiredCheckedAt || '',
+      ...pickEmbeddableFields(article)
     };
   });
   const jsContent = `const posts = ${JSON.stringify(exportData, null, 4)};`;
@@ -1830,7 +1848,8 @@ function parseJsEmbedFile(content) {
               status: item.status || '',
               expiredAt: item.expiredAt || '',
               expiredReason: item.expiredReason || '',
-              expiredCheckedAt: item.expiredCheckedAt || ''
+              expiredCheckedAt: item.expiredCheckedAt || '',
+              ...pickEmbeddableFields(item)
             };
           });
         }
@@ -2066,17 +2085,8 @@ function renderPreviewModalContent() {
   }
 }
 function getThreadsEmbedUrl(postLink) {
-  if (!postLink || typeof postLink !== 'string') return '';
-  const cleanLink = postLink.split('?')[0].replace(/\/+$/, '');
-  const userPostMatch = cleanLink.match(/(?:threads\.net|threads\.com)\/@([^\/]+)\/post\/([^\/\?]+)/i);
-  if (userPostMatch) {
-    return `https://www.threads.com/@${encodeURIComponent(userPostMatch[1])}/post/${encodeURIComponent(userPostMatch[2])}/embed`;
-  }
-  const tMatch = cleanLink.match(/(?:threads\.net|threads\.com)\/t\/([^\/\?]+)/i);
-  if (tMatch) {
-    return `https://www.threads.com/t/${encodeURIComponent(tMatch[1])}/embed`;
-  }
-  return '';
+  const embedPath = getThreadsEmbedPath(postLink);
+  return embedPath ? `https://www.threads.com${embedPath}` : '';
 }
 let previewLoadTimer = null;
 function setPreviewState(state, message, { retryable = true } = {}) {

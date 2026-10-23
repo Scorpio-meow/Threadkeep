@@ -743,6 +743,20 @@ function extractTags(text, container = null) {
       return true;
     });
 }
+async function recordEmbeddable(storageKey, postLink) {
+  const embedPath = getThreadsEmbedPath(postLink);
+  if (!embedPath) return;
+  const embeddable = await checkEmbeddable(location.origin + embedPath);
+  try {
+    const stored = await safeStorageGet([storageKey]);
+    const article = stored[storageKey];
+    if (article && applyEmbeddableResult(article, embeddable)) {
+      await safeStorageSet({ [storageKey]: article });
+    }
+  } catch (error) {
+    console.warn('[Threads Saver] 記錄內嵌檢查結果失敗:', error);
+  }
+}
 async function saveArticle(articleData, button) {
   try {
     if (isExtensionAlive()) {
@@ -756,7 +770,7 @@ async function saveArticle(articleData, button) {
     const result = await safeStorageGet([storageKey]);
     const isExisting = storageKey in result;
     if (isExisting) {
-      await safeStorageSet({ [storageKey]: articleData });
+      await safeStorageSet({ [storageKey]: { ...pickEmbeddableFields(result[storageKey]), ...articleData } });
       console.info('[Threads Saver] 已更新', storageKey);
       if (button) {
         button.classList.add('saved');
@@ -776,6 +790,7 @@ async function saveArticle(articleData, button) {
       }
       showNotification('內嵌程式碼已儲存');
     }
+    void recordEmbeddable(storageKey, articleData.postLink);
   } catch (error) {
     console.error('[Threads Saver] 儲存失敗:', error);
     if (error.message && (error.message.includes('QUOTA') || error.message.includes('quota'))) {

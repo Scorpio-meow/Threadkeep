@@ -769,7 +769,8 @@ async function exportFeaturedData() {
       postLink: article.postLink || '',
       author: author,
       content: article.content || '',
-      tags: article.tags || []
+      tags: article.tags || [],
+      ...pickEmbeddableFields(article)
     };
   });
   const jsContent = `const posts = ${JSON.stringify(exportData, null, 4)};`;
@@ -809,7 +810,8 @@ async function exportFullData() {
       status: article.status || '',
       expiredAt: article.expiredAt || '',
       expiredReason: article.expiredReason || '',
-      expiredCheckedAt: article.expiredCheckedAt || ''
+      expiredCheckedAt: article.expiredCheckedAt || '',
+      ...pickEmbeddableFields(article)
     };
   });
   const jsContent = `const posts = ${JSON.stringify(exportData, null, 4)};`;
@@ -906,6 +908,7 @@ function parseJsEmbedFile(content) {
               expiredAt: item.expiredAt || '',
               expiredReason: item.expiredReason || '',
               expiredCheckedAt: item.expiredCheckedAt || '',
+              ...pickEmbeddableFields(item),
               importedFrom: 'full-data-file'
             };
           });

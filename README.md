@@ -212,6 +212,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
   - 若貼文被刪除、轉為私密或發生轉導（`redirected`），系統將自動標記為 `expired` 並記錄原因。
   - 若頁面確認為不存在或移除（出現 404 或未找到貼文容器 `[data-pressable-container]`），將記錄為 `post-not-found`。
   - 若下次更新時貼文恢復可存取狀態，系統會自動清除失效標籤並恢復為 `active`。
+- **內嵌可用性檢查**：每篇在背景分頁裡以同源、不帶 Cookie 的請求打一次 `/embed`，結果寫入 `embeddable` 與 `embeddableCheckedAt`。回 HTTP 500（例如只開放登入者觀看的貼文）記為 `false`，回 200 且含 `.Embed` 記為 `true`；逾時、限流或其他回應不寫入，保留上次的結論。必須在 threads.com 的分頁裡檢查，因為擴充功能頁面跨站請求 `/embed` 只會拿到 Threads 的一般頁面殼。在 Threads 儲存新貼文時，`content.js` 也會在背景檢查一次。
 
 ### 6. 雙檢視介面與全方位批次操作
 - **Popup 快速面板**：提供即時搜尋、多維度排序、類型篩選、單篇刪除、複製內嵌代碼、資料匯出與匯入功能。
@@ -683,6 +684,12 @@ interface SavedArticle {
   /** 發布時間戳記最後更新時間 (ISO 8601) */
   timestampUpdatedAt?: string;
 
+  /** 不帶 Cookie 時 Threads 是否提供內嵌卡片：/embed 回 HTTP 500 為 false，回 200 且含 .Embed 為 true；沒檢查過或檢查不出結論時不存在 */
+  embeddable?: boolean;
+
+  /** 最後一次得出 embeddable 結論的時間 (ISO 8601) */
+  embeddableCheckedAt?: string;
+
   /** 匯入來源標記 */
   importedFrom?: 'full-data-file' | 'js-embed-file';
 }
@@ -737,8 +744,8 @@ interface SavedArticle {
 | 格式名稱 | 匯出檔案名稱規範 | 格式結構 | 適用情境與特點 |
 | :--- | :--- | :--- | :--- |
 | **簡易版嵌入碼 (Embed Only)** | `threads-embed-codes-YYYY-MM-DD.js` | `const posts = ['<blockquote>...</blockquote>', ...];` | 專為靜態網頁快速引用設計，已自動移除重複的 script 標籤並轉義引號。 |
-| **精選貼文資料 (Featured Data)** | `threads-featured-data-YYYY-MM-DD.js` | `const posts = [{ embedCode, postLink, author, content, tags }, ...];` | 專為關聯專案 [Threads-Featured-Posts](https://github.com/Scorpio-meow/Threads-Featured-Posts) 設計，author 欄位自動去除 `@` 前綴以利作為 Key 或展示標籤使用。 |
-| **完整版備份資料 (Full Data)** | `threads-full-data-YYYY-MM-DD.js` | `const posts = [{ embedCode, postLink, author, content, timestamp, timestampTitle, savedAt, tags, status, ... }, ...];` | 包含內文、時間、標籤與失效狀態等欄位，適用於跨裝置備份、資料遷移與災難還原。不含 `id`，匯入時會重新產生。 |
+| **精選貼文資料 (Featured Data)** | `threads-featured-data-YYYY-MM-DD.js` | `const posts = [{ embedCode, postLink, author, content, tags, embeddable?, embeddableCheckedAt? }, ...];` | 專為關聯專案 [Threads-Featured-Posts](https://github.com/Scorpio-meow/Threads-Featured-Posts) 設計，author 欄位自動去除 `@` 前綴以利作為 Key 或展示標籤使用。檢查過內嵌可用性的貼文才帶 `embeddable` 與 `embeddableCheckedAt`；網站只在 `embeddable === false` 且 iframe 載入失敗時改顯示「只限登入者觀看」的說明。 |
+| **完整版備份資料 (Full Data)** | `threads-full-data-YYYY-MM-DD.js` | `const posts = [{ embedCode, postLink, author, content, timestamp, timestampTitle, savedAt, tags, status, ... }, ...];` | 包含內文、時間、標籤、失效狀態與內嵌可用性（檢查過才有）等欄位，適用於跨裝置備份、資料遷移與災難還原。不含 `id`，匯入時會重新產生。 |
 
 ### 匯出檔案範例
 
@@ -916,6 +923,11 @@ cd threads-embedded-code
 ## 版本更新紀錄 (Changelog)
 
 本專案嚴格遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 格式規範。
+
+### [Unreleased]
+
+#### 新增
+- 內嵌可用性檢查：「更新貼文資料」與在 Threads 儲存貼文時，會以同源、不帶 Cookie 的請求檢查 Threads 是否提供這篇的內嵌卡片，結果存成 `embeddable` 與 `embeddableCheckedAt`。回 HTTP 500 記為 `false`，回 200 且含 `.Embed` 記為 `true`，其他情況不寫入。精選格式與完整備份都會匯出這兩個欄位（檢查過才有），匯入時保留；精選貼文網站據此對只開放登入者觀看的貼文顯示具體說明。
 
 ### [2.5.0] - 2026-10-23
 

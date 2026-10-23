@@ -78,6 +78,12 @@ interface SavedArticle {
   /** Timestamp when publication timestamp was last updated (ISO 8601) */
   timestampUpdatedAt?: string;
 
+  /** Whether Threads serves an embed card to a cookieless request: false when /embed answers HTTP 500, true when it answers 200 with a .Embed container; absent when never checked or inconclusive */
+  embeddable?: boolean;
+
+  /** When the last conclusive embeddable check ran (ISO 8601) */
+  embeddableCheckedAt?: string;
+
   /** Source format indicator when imported */
   importedFrom?: 'full-data-file' | 'js-embed-file';
 }
@@ -130,7 +136,8 @@ interface SavedArticle {
 ### 6. Background Sequential Update Queue
 - Queue scope: the selected posts when any checkbox is checked, otherwise the current filtered and sorted list.
 - Executes updates sequentially inside a single reusable hidden tab (`chrome.tabs.update`) to eliminate rate limiting or high CPU usage. The tab is closed on extraction failure and in the `finally` block once the queue ends.
-- Safety cap: `fetchPostInfoWithReusableTab` waits at most 60 seconds (`POST_FETCH_TIMEOUT_MS`) for navigation plus extraction. A timeout returns `null`, which counts as a failure and closes the worker tab; it never marks the post as expired. The injected extractor runs its check from a `MutationObserver`, at most once per 80ms (`POST_INFO_CHECK_INTERVAL_MS`), so it reacts as soon as the page renders and is not slowed by background-tab timer throttling.
+- Safety cap: `fetchPostInfoWithReusableTab` waits at most 60 seconds (`POST_FETCH_TIMEOUT_MS`) for navigation plus extraction. A timeout returns `null`, which counts as a failure and closes the worker tab; it never marks the post as expired.
+- Embeddable check: after loading each post, the queue runs `checkEmbeddable` (from `article-store.js`) inside the threads.com worker tab via `chrome.scripting.executeScript`, as a same-origin `fetch` of the post's `/embed` with `credentials: 'omit'`. HTTP 500 sets `embeddable: false`, a 200 response containing `class="Embed"` sets `true`, and anything else (timeout, rate limit, other responses) leaves the previous value alone; conclusive results also set `embeddableCheckedAt`. The check must run in a threads.com tab: a cross-site fetch from an extension page only receives Threads' generic app shell. `content.js` runs the same check once in the background after saving a post. Both fields are in `ARTICLE_UPDATE_FIELDS`, the featured and full exports include them when present (`pickEmbeddableFields`), and imports keep them. The injected extractor runs its check from a `MutationObserver`, at most once per 80ms (`POST_INFO_CHECK_INTERVAL_MS`), so it reacts as soon as the page renders and is not slowed by background-tab timer throttling.
 - Supports pause, resume, and cancellation signals. Results are persisted every 20 posts (`UPDATE_PERSIST_BATCH_SIZE`), when pausing, and when the queue ends. Each write (`mergeArticleUpdates`) reads only the keys of the pending posts, copies the update fields (`timestamp`, `timestampTitle`, `content`, `tags`, expired status fields, `timestampUpdatedAt`) onto the stored records, and skips keys that no longer exist, so posts deleted during the queue are not resurrected and posts saved on Threads meanwhile are untouched. Closing the page mid-run loses at most the last 19 unsaved updates.
 - During the run only the updated card and the statistics are re-rendered; filters, clouds, and the full list refresh once the queue ends.
 - Automatically marks posts as expired on redirect, post-not-found (404/deleted), or platform fallback summary, and restores them to active once accessible again.
@@ -181,7 +188,7 @@ All three exports are selection-aware: when posts are checked only those are exp
        '<blockquote class="text-post-media" data-text-post-permalink="...">...</blockquote>'
    ];
    ```
-2. Featured Data: `threads-featured-data-YYYY-MM-DD.js` (Formatted for Threads-Featured-Posts; author without @ prefix)
+2. Featured Data: `threads-featured-data-YYYY-MM-DD.js` (Formatted for Threads-Featured-Posts; author without @ prefix; includes `embeddable` and `embeddableCheckedAt` only for posts that have been checked)
    ```javascript
    const posts = [
        {

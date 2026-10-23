@@ -1,7 +1,43 @@
 const ARTICLE_KEY_PREFIX = 'post:';
 const LEGACY_ARTICLES_KEY = 'savedArticles';
-const ARTICLE_UPDATE_FIELDS = ['timestamp', 'timestampTitle', 'content', 'tags', 'status', 'expiredAt', 'expiredReason', 'expiredCheckedAt', 'timestampUpdatedAt'];
+const ARTICLE_UPDATE_FIELDS = ['timestamp', 'timestampTitle', 'content', 'tags', 'status', 'expiredAt', 'expiredReason', 'expiredCheckedAt', 'timestampUpdatedAt', 'embeddable', 'embeddableCheckedAt'];
 const THEME_PREFERENCE_KEY = 'themePreference';
+const EMBED_CHECK_TIMEOUT_MS = 10000;
+function getThreadsEmbedPath(postLink) {
+  if (!postLink || typeof postLink !== 'string') return '';
+  const cleanLink = postLink.split('?')[0].replace(/\/+$/, '');
+  const userPostMatch = cleanLink.match(/(?:threads\.net|threads\.com)\/@([^\/]+)\/post\/([^\/\?]+)/i);
+  if (userPostMatch) {
+    return `/@${encodeURIComponent(userPostMatch[1])}/post/${encodeURIComponent(userPostMatch[2])}/embed`;
+  }
+  const tMatch = cleanLink.match(/(?:threads\.net|threads\.com)\/t\/([^\/\?]+)/i);
+  if (tMatch) {
+    return `/t/${encodeURIComponent(tMatch[1])}/embed`;
+  }
+  return '';
+}
+async function checkEmbeddable(embedUrl) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), EMBED_CHECK_TIMEOUT_MS);
+  try {
+    const response = await fetch(embedUrl, { credentials: 'omit', cache: 'no-store', signal: controller.signal });
+    if (response.status === 500) return false;
+    if (response.ok && (await response.text()).includes('class="Embed"')) return true;
+  } catch (_) { } finally {
+    clearTimeout(timer);
+  }
+  return null;
+}
+function applyEmbeddableResult(article, embeddable) {
+  if (typeof embeddable !== 'boolean') return false;
+  article.embeddable = embeddable;
+  article.embeddableCheckedAt = new Date().toISOString();
+  return true;
+}
+function pickEmbeddableFields(article) {
+  if (typeof article.embeddable !== 'boolean') return {};
+  return { embeddable: article.embeddable, embeddableCheckedAt: article.embeddableCheckedAt || '' };
+}
 function getTagGroups(articles) {
   const groups = new Map();
   articles.forEach((article) => {
