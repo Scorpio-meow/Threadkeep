@@ -14,6 +14,7 @@ const TOAST_DURATION_MS = 4000;
 const TOAST_ERROR_DURATION_MS = 6000;
 const TOAST_MS_PER_CHAR = 120;
 const UNDO_TOAST_DURATION_MS = 8000;
+const COPY_FEEDBACK_MS = 2500;
 const RENDER_BATCH_SIZE = 60;
 const LOAD_MORE_ROOT_MARGIN = '600px';
 const CARD_PREVIEW_LENGTH = 150;
@@ -33,6 +34,8 @@ let renderedCount = 0;
 let loadMoreObserver = null;
 const searchTextCache = new WeakMap();
 const sortCollator = new Intl.Collator('zh-TW');
+const textSegmenter = new Intl.Segmenter('zh-TW', { granularity: 'grapheme' });
+const copyFeedbackTimers = new WeakMap();
 document.addEventListener('DOMContentLoaded', async () => {
   void setupThemePreference(document.getElementById('themeSelect'));
   await loadArticles();
@@ -441,11 +444,11 @@ function updateFilterValueOptions() {
       values.sort((a, b) => a.localeCompare(b, 'zh-TW'));
       break;
     default:
-      container.style.display = 'none';
+      container.dataset.open = 'false';
       return;
   }
   if (values.length > 0) {
-    container.style.display = 'flex';
+    container.dataset.open = 'true';
     values.forEach(val => {
       const opt = document.createElement('option');
       opt.value = val;
@@ -456,7 +459,7 @@ function updateFilterValueOptions() {
       select.appendChild(opt);
     });
   } else {
-    container.style.display = 'none';
+    container.dataset.open = 'false';
   }
 }
 function getArticleSearchText(article) {
@@ -682,7 +685,8 @@ const CARD_ICON_MARKUP = {
   preview: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
   view: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
   copy: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-  delete: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>'
+  delete: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+  check: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
 };
 const cardIconCache = new Map();
 function cloneCardIcon(name) {
@@ -760,10 +764,14 @@ function createArticleCard(article) {
   bodyEl.className = 'card-body';
   const rawContent = article.content || '';
   if (rawContent.length > CARD_PREVIEW_LENGTH) {
-    const spanText = document.createElement('span');
-    spanText.className = 'text-chunk';
-    spanText.textContent = rawContent.substring(0, CARD_PREVIEW_LENGTH) + '...';
-    bodyEl.appendChild(spanText);
+    const collapse = document.createElement('div');
+    collapse.className = 'card-body-collapse';
+    collapse.dataset.expanded = 'false';
+    const textEl = document.createElement('div');
+    textEl.className = 'card-body-text';
+    textEl.textContent = rawContent;
+    collapse.appendChild(textEl);
+    bodyEl.appendChild(collapse);
     const expandBtn = document.createElement('button');
     expandBtn.type = 'button';
     expandBtn.className = 'expand-text-btn';
@@ -813,10 +821,19 @@ function createArticleCard(article) {
   actions.appendChild(viewBtn);
   if (article.embedCode) {
     const copyEmbedBtn = document.createElement('button');
-    copyEmbedBtn.className = 'card-action-btn';
+    copyEmbedBtn.className = 'card-action-btn copy-btn';
     copyEmbedBtn.dataset.action = 'copy-embed';
     copyEmbedBtn.setAttribute('aria-label', `複製內嵌代碼：${articleLabel}`);
-    copyEmbedBtn.append(cloneCardIcon('copy'), '複製內嵌代碼');
+    const copyLabel = document.createElement('span');
+    copyLabel.className = 'copy-label';
+    copyLabel.append(cloneCardIcon('copy'), '複製內嵌代碼');
+    const copyFeedback = document.createElement('span');
+    copyFeedback.className = 'copy-feedback';
+    copyFeedback.setAttribute('aria-hidden', 'true');
+    const copyFeedbackContent = document.createElement('span');
+    copyFeedbackContent.append(cloneCardIcon('check'), '已複製');
+    copyFeedback.appendChild(copyFeedbackContent);
+    copyEmbedBtn.append(copyLabel, copyFeedback);
     actions.appendChild(copyEmbedBtn);
   }
   const deleteBtn = document.createElement('button');
@@ -836,12 +853,10 @@ function handleArticleListClick(e) {
   const articleId = card ? card.dataset.id : '';
   switch (actionEl.dataset.action) {
     case 'toggle-expand': {
-      const article = findArticleById(articleId);
-      const spanText = actionEl.previousElementSibling;
-      if (!article || !spanText) return;
-      const rawContent = article.content || '';
+      const collapse = actionEl.previousElementSibling;
+      if (!collapse) return;
       const isExpanded = actionEl.dataset.expanded !== 'true';
-      spanText.textContent = isExpanded ? rawContent : rawContent.substring(0, CARD_PREVIEW_LENGTH) + '...';
+      collapse.dataset.expanded = String(isExpanded);
       actionEl.textContent = isExpanded ? '收起全文' : '展開全文';
       actionEl.dataset.expanded = String(isExpanded);
       break;
@@ -861,7 +876,7 @@ function handleArticleListClick(e) {
     case 'copy-embed': {
       const article = findArticleById(articleId);
       if (article && article.embedCode) {
-        copyTextToClipboard(article.embedCode, '內嵌代碼已複製');
+        copyTextToClipboard(article.embedCode, '內嵌代碼已複製', actionEl);
       }
       break;
     }
@@ -928,10 +943,18 @@ function toggleSelectAll(checked) {
   updateSelectionUI();
   announceSelection();
 }
-async function copyTextToClipboard(text, successMessage) {
+function showCopyFeedback(button) {
+  clearTimeout(copyFeedbackTimers.get(button));
+  button.dataset.feedback = 'copied';
+  copyFeedbackTimers.set(button, setTimeout(() => {
+    delete button.dataset.feedback;
+  }, COPY_FEEDBACK_MS));
+}
+async function copyTextToClipboard(text, successMessage, button) {
   try {
     await navigator.clipboard.writeText(text);
-    showToast(successMessage);
+    showCopyFeedback(button);
+    announce(successMessage);
   } catch (err) {
     console.error('複製失敗:', err);
     showToast('複製失敗，瀏覽器權限受限', { type: 'error' });
@@ -943,7 +966,25 @@ function getToastDuration(message, isError) {
 }
 function fadeOutToast(toast) {
   toast.classList.add('fade-out');
-  toast.addEventListener('animationend', () => toast.remove());
+  toast.addEventListener('animationend', (e) => {
+    if (e.target === toast) toast.remove();
+  });
+}
+function appendStreamedText(target, text) {
+  const spoken = document.createElement('span');
+  spoken.className = 'sr-only';
+  spoken.textContent = text;
+  const visual = document.createElement('span');
+  visual.setAttribute('aria-hidden', 'true');
+  let index = 0;
+  for (const { segment } of textSegmenter.segment(text)) {
+    const char = document.createElement('span');
+    char.className = 'stream-char';
+    char.style.setProperty('--char-index', index++);
+    char.textContent = segment;
+    visual.appendChild(char);
+  }
+  target.append(spoken, visual);
 }
 function startToastTimer(toast, duration, onExpire) {
   let remaining = duration;
@@ -985,7 +1026,7 @@ function showToast(message, options = {}) {
   const isError = options.type === 'error';
   const toast = document.createElement('div');
   toast.className = isError ? 'toast toast-error' : 'toast';
-  toast.textContent = message;
+  appendStreamedText(toast, String(message));
   container.appendChild(toast);
   const duration = options.duration || getToastDuration(message, isError);
   startToastTimer(toast, duration, () => fadeOutToast(toast));
@@ -997,7 +1038,7 @@ function showUndoToast(message, onUndo, duration = UNDO_TOAST_DURATION_MS) {
   const toast = document.createElement('div');
   toast.className = 'toast toast-undo';
   const text = document.createElement('span');
-  text.textContent = message;
+  appendStreamedText(text, message);
   const undoBtn = document.createElement('button');
   undoBtn.type = 'button';
   undoBtn.className = 'toast-undo-btn';
@@ -1083,7 +1124,7 @@ async function batchCopyEmbedCodes() {
     blockquoteOnly = blockquoteOnly.trim();
     return blockquoteOnly;
   }).join('\n\n');
-  await copyTextToClipboard(codes, `已批次複製 ${targets.length} 篇內嵌程式碼`);
+  await copyTextToClipboard(codes, `已批次複製 ${targets.length} 篇內嵌程式碼`, document.getElementById('batchCopyEmbedBtn'));
 }
 async function deleteArticle(articleId) {
   const article = allArticles.find(a => a.id === articleId);
@@ -1865,7 +1906,7 @@ function setupPreviewModalListeners() {
       } while (blockquoteOnly !== previous);
       blockquoteOnly = blockquoteOnly.trim();
       if (blockquoteOnly) {
-        copyTextToClipboard(blockquoteOnly, '內嵌代碼已複製');
+        copyTextToClipboard(blockquoteOnly, '內嵌代碼已複製', previewCopyEmbedBtn);
       } else {
         showToast('無內嵌代碼可複製');
       }
@@ -1893,6 +1934,14 @@ function setupPreviewModalListeners() {
           data = JSON.parse(data);
         } catch (_) { }
       }
+      const iframe = document.getElementById('previewIframe');
+      if (data && data.type === 'THREADS_EMBED_ERROR') {
+        if (iframe && event.source === iframe.contentWindow) {
+          clearTimeout(previewLoadTimer);
+          setPreviewState('error', 'Threads 不提供這篇貼文的內嵌卡片，可能是貼文已刪除、不公開，或只開放登入的使用者觀看（例如被列為敏感內容）。若是後者，在這個瀏覽器登入 Threads 後重新載入即可預覽，但內嵌碼放到網站上，訪客一樣看不到。也可以切換到上方「原始碼與中繼資料」分頁查看已儲存的內容，或按下方「在 Threads 開啟原文」。');
+        }
+        return;
+      }
       if (data && typeof data === 'object') {
         let targetHeight = 0;
         let details = data.details;
@@ -1913,7 +1962,6 @@ function setupPreviewModalListeners() {
           targetHeight = Number(data.scrollHeight);
         }
         if (targetHeight > 100 && targetHeight < 5000) {
-          const iframe = document.getElementById('previewIframe');
           if (iframe) {
             iframe.style.height = `${targetHeight}px`;
           }
@@ -2022,11 +2070,11 @@ function getThreadsEmbedUrl(postLink) {
   const cleanLink = postLink.split('?')[0].replace(/\/+$/, '');
   const userPostMatch = cleanLink.match(/(?:threads\.net|threads\.com)\/@([^\/]+)\/post\/([^\/\?]+)/i);
   if (userPostMatch) {
-    return `https://www.threads.net/@${encodeURIComponent(userPostMatch[1])}/post/${encodeURIComponent(userPostMatch[2])}/embed`;
+    return `https://www.threads.com/@${encodeURIComponent(userPostMatch[1])}/post/${encodeURIComponent(userPostMatch[2])}/embed`;
   }
   const tMatch = cleanLink.match(/(?:threads\.net|threads\.com)\/t\/([^\/\?]+)/i);
   if (tMatch) {
-    return `https://www.threads.net/t/${encodeURIComponent(tMatch[1])}/embed`;
+    return `https://www.threads.com/t/${encodeURIComponent(tMatch[1])}/embed`;
   }
   return '';
 }
@@ -2064,6 +2112,8 @@ function renderEmbedPane(article) {
   iframe.src = sanitizeUrl(embedUrl);
   iframe.onload = () => {
     clearTimeout(previewLoadTimer);
+    const wrapper = document.getElementById('previewIframeWrapper');
+    if (wrapper && wrapper.dataset.state === 'error') return;
     setPreviewState('ready');
   };
   iframe.onerror = () => {

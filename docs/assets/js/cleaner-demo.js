@@ -44,7 +44,7 @@
   }
   function setState(state, message) {
     root.dataset.state = state;
-    statusText.textContent = message;
+    site.streamText(statusText, message);
     errorBox.hidden = state !== 'error';
   }
   function start() {

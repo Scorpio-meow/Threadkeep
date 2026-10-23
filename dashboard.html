@@ -85,11 +85,15 @@
             <option value="expired">失效貼文</option>
           </select>
         </div>
-        <div class="control-group is-hidden" id="filterValueContainer">
-          <label for="filterValueSelect">篩選數值</label>
-          <select id="filterValueSelect" class="form-select">
-            <option value="">全部</option>
-          </select>
+        <div class="control-collapse" id="filterValueContainer" data-open="false">
+          <div class="control-collapse-inner">
+            <div class="control-group">
+              <label for="filterValueSelect">篩選數值</label>
+              <select id="filterValueSelect" class="form-select">
+                <option value="">全部</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
       <div class="sidebar-section">
@@ -163,7 +167,14 @@
         </div>
         <div class="batch-right" id="batchActionsContainer">
           <button class="btn btn-small btn-warning" id="batchUpdateBtn" disabled>更新貼文資料</button>
-          <button class="btn btn-small" id="batchCopyEmbedBtn" disabled>批次複製 Embed</button>
+          <button class="btn btn-small copy-btn" id="batchCopyEmbedBtn" disabled>
+            <span class="copy-label">批次複製 Embed</span>
+            <span class="copy-feedback" aria-hidden="true"><span><svg xmlns="http://www.w3.org/2000/svg" width="12"
+                  height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>已複製</span></span>
+          </button>
           <button class="btn btn-small btn-danger" id="batchDeleteBtn" disabled>批次刪除</button>
         </div>
       </div>
@@ -292,13 +303,17 @@
           <span class="preview-post-time" id="previewPostTime"></span>
         </div>
         <div class="preview-footer-actions">
-          <button class="preview-action-btn secondary" id="previewCopyEmbedBtn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="16 18 22 12 16 6" />
-              <polyline points="8 6 2 12 8 18" />
-            </svg>
-            複製內嵌代碼
+          <button class="preview-action-btn secondary copy-btn" id="previewCopyEmbedBtn">
+            <span class="copy-label"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>複製內嵌代碼</span>
+            <span class="copy-feedback" aria-hidden="true"><span><svg xmlns="http://www.w3.org/2000/svg" width="14"
+                  height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>已複製</span></span>
           </button>
           <a class="preview-action-btn primary" id="previewOpenThreadsLink" target="_blank" rel="noopener noreferrer">
             <span>在 Threads 開啟原文</span>

@@ -7,8 +7,8 @@
   <title>Threads 程式碼儲存器｜自動收藏 Threads 貼文的瀏覽器擴充功能</title>
   <meta name="description"
     content="免費開源的 Chromium 擴充功能。在 Threads 點「取得內嵌程式碼」時，自動存下官方內嵌碼、內文、作者、發文時間與標籤；資料只存在你的瀏覽器，可即時預覽、背景更新，並匯出成三種格式。">
-  <meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0e0e11" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f5f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b0b0a" media="(prefers-color-scheme: dark)">
   <link rel="canonical" href="https://scorpio-meow.github.io/Threads-embedded-code/">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="zh_TW">
@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400..600&family=Manrope:wght@400..800&family=Noto+Sans+TC:wght@400..900&display=swap">
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300..600&family=Manrope:wght@300..800&family=Noto+Sans+TC:wght@300..900&display=swap">
   <link rel="preload" as="image" href="assets/img/shot-dashboard-1600.webp"
     imagesrcset="assets/img/shot-dashboard-960.webp 960w, assets/img/shot-dashboard-1600.webp 1600w"
     imagesizes="(min-width: 1280px) 1000px, 84vw">
@@ -104,7 +104,6 @@
     </div>
   </header>
   <main id="main">
-    <!-- Hero：上半是紙面上的標題，下半是品牌紅底上的實際畫面 -->
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="container hero__head">
         <h1 class="hero__title hero__in" id="hero-title" style="--i: 0">
@@ -141,7 +140,7 @@
             <img class="shot hero__popup" src="assets/img/shot-popup-520.webp"
               srcset="assets/img/shot-popup-520.webp 520w, assets/img/shot-popup-960.webp 960w"
               sizes="(min-width: 1280px) 300px, 30vw" width="520" height="650" alt="工具列彈出視窗：搜尋框、排序與篩選選單，以及匯出、匯入按鈕">
-            <img class="hero__toast" src="assets/img/ui-notification.webp" width="206" height="102"
+            <img class="hero__toast" src="assets/img/ui-notification.webp" width="206" height="130"
               alt="Threads 頁面右上角跳出的「內嵌程式碼已儲存」提示">
             <img class="hero__mascot" src="assets/img/mascot-320.webp"
               srcset="assets/img/mascot-320.webp 320w, assets/img/mascot-640.webp 640w" sizes="160px" width="320"
@@ -175,7 +174,6 @@
         </ul>
       </div>
     </section>
-    <!-- How it works：把三個步驟畫成一條放大的進度列 -->
     <section class="section" id="how" aria-labelledby="how-title">
       <div class="container">
         <header class="section-head">
@@ -198,7 +196,6 @@
         </ol>
       </div>
     </section>
-    <!-- Cleaning demo：這一頁唯一的互動，直接執行 content.js 的清洗函式 -->
     <section class="section section--tinted" id="demo" aria-labelledby="demo-title" data-chapter="tint">
       <div class="container">
         <header class="section-head">
@@ -304,7 +301,6 @@ just now</script>
 尚無回覆</script>
       </div>
     </section>
-    <!-- Features：左邊是功能清單，右邊放選中功能的實際畫面 -->
     <section class="section" id="features" aria-labelledby="features-title">
       <div class="container">
         <header class="section-head">
@@ -345,7 +341,7 @@ just now</script>
             <article class="tabs__panel cap" role="tabpanel" id="cap-queue" aria-labelledby="cap-tab-queue" tabindex="0"
               hidden>
               <div class="cap__media">
-                <img src="assets/img/ui-progress.webp" width="668" height="326" loading="lazy"
+                <img src="assets/img/ui-progress.webp" width="636" height="288" loading="lazy"
                   alt="更新進度面板：顯示「更新中 (4/11)」、執行中標籤、進度條與暫停、取消按鈕">
               </div>
               <h3 class="cap__title">在背景逐篇更新</h3>
@@ -354,7 +350,7 @@ just now</script>
             <article class="tabs__panel cap" role="tabpanel" id="cap-undo" aria-labelledby="cap-tab-undo" tabindex="0"
               hidden>
               <div class="cap__media">
-                <img src="assets/img/ui-undo.webp" width="484" height="226" loading="lazy"
+                <img src="assets/img/ui-undo.webp" width="487" height="284" loading="lazy"
                   alt="提示列顯示「已刪除 1 篇貼文」與「復原」按鈕">
               </div>
               <h3 class="cap__title">刪錯了還能復原</h3>
@@ -363,7 +359,7 @@ just now</script>
             <article class="tabs__panel cap" role="tabpanel" id="cap-tags" aria-labelledby="cap-tab-tags" tabindex="0"
               hidden>
               <div class="cap__media">
-                <img src="assets/img/ui-tags.webp" width="668" height="440" loading="lazy"
+                <img src="assets/img/ui-tags.webp" width="636" height="408" loading="lazy"
                   alt="常用標籤雲，#台南 (4) 為目前選取的篩選條件">
               </div>
               <h3 class="cap__title">標籤與作者排行</h3>
@@ -372,7 +368,7 @@ just now</script>
             <article class="tabs__panel cap" role="tabpanel" id="cap-expired" aria-labelledby="cap-tab-expired"
               tabindex="0" hidden>
               <div class="cap__media cap__media--top">
-                <img src="assets/img/ui-expired.webp" width="996" height="787" loading="lazy"
+                <img src="assets/img/ui-expired.webp" width="1004" height="751" loading="lazy"
                   alt="一張貼文卡片，帶有紅色的「已失效 (post-not-found)」標籤">
               </div>
               <h3 class="cap__title">貼文消失也知道</h3>
@@ -381,7 +377,7 @@ just now</script>
             <article class="tabs__panel cap" role="tabpanel" id="cap-batch" aria-labelledby="cap-tab-batch" tabindex="0"
               hidden>
               <div class="cap__media">
-                <img src="assets/img/ui-batch.webp" width="1392" height="226" loading="lazy"
+                <img src="assets/img/ui-batch.webp" width="1392" height="228" loading="lazy"
                   alt="批次工具列：已選取 2 篇，右側有更新貼文資料、批次複製 Embed、批次刪除三個按鈕">
               </div>
               <h3 class="cap__title">勾選後批次處理</h3>
@@ -433,7 +429,6 @@ just now</script>
         </div>
       </div>
     </section>
-    <!-- Export -->
     <section class="section section--tinted" id="export" aria-labelledby="export-title" data-chapter="tint">
       <div class="container">
         <header class="section-head">
@@ -554,7 +549,6 @@ just now</script>
         </div>
       </div>
     </section>
-    <!-- Privacy：權限直接排成一張表 -->
     <section class="section" id="privacy" aria-labelledby="privacy-title">
       <div class="container privacy">
         <div class="privacy__head">
@@ -620,7 +614,6 @@ just now</script>
         </table>
       </div>
     </section>
-    <!-- Developer notes -->
     <section class="section section--tinted" id="dev" aria-labelledby="dev-title" data-chapter="tint">
       <div class="container dev">
         <header class="section-head dev__intro">
@@ -643,9 +636,11 @@ just now</script>
             <div class="note__copy">
               <h3 class="note__title" data-reveal>嵌入碼評分</h3>
               <p class="note__text" data-reveal style="--i: 1">對話框裡可能同時有純連結和完整內嵌碼。每個唯讀欄位依內容加權，分數最高的就是帶
-                <code>data-text-post-permalink</code> 的 blockquote。</p>
+                <code>data-text-post-permalink</code> 的 blockquote。
+              </p>
               <p class="note__source" data-reveal style="--i: 2">節錄自 <code>content.js</code> 的
-                <code>extractEmbedCodeFromDialog</code></p>
+                <code>extractEmbedCodeFromDialog</code>
+              </p>
             </div>
             <pre class="code" data-reveal style="--i: 2"><code data-highlight>let score = value.length;
 if (/data-text-post-permalink=/i.test(value)) score += 1000;
@@ -656,9 +651,11 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
             <div class="note__copy">
               <h3 class="note__title" data-reveal>保留換行的內文擷取</h3>
               <p class="note__text" data-reveal style="--i: 1">只保留沒有被其他候選容器包住的最外層容器，再用 <code>innerText</code> 輸出。段落與
-                <code>&lt;br&gt;</code> 換行都留著，子節點也不會重複擷取。</p>
+                <code>&lt;br&gt;</code> 換行都留著，子節點也不會重複擷取。
+              </p>
               <p class="note__source" data-reveal style="--i: 2">節錄自 <code>content.js</code> 的
-                <code>extractContentFromDOM</code></p>
+                <code>extractContentFromDOM</code>
+              </p>
             </div>
             <pre class="code" data-reveal style="--i: 2"><code data-highlight>const topContainers = beforeReply.filter(el =&gt;
   !beforeReply.some(other =&gt; other !== el &amp;&amp; other.contains(el))
@@ -692,7 +689,8 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
               <h3 class="note__title" data-reveal>預覽高度回報與來源驗證</h3>
               <p class="note__text" data-reveal style="--i: 1">Threads 的內嵌頁不會回報高度，所以 <code>content.js</code> 也注入預覽框架，用
                 <code>ResizeObserver</code> 量 <code>.Embed</code> 的高度，有變化才用 <code>postMessage</code>
-                回傳。控制面板只接受官方網域的訊息。</p>
+                回傳。控制面板只接受官方網域的訊息。
+              </p>
               <p class="note__source" data-reveal style="--i: 2">摘自 <code>dashboard.js</code></p>
             </div>
             <pre class="code" data-reveal style="--i: 2"><code data-highlight>function isAllowedEmbedOrigin(origin) {
@@ -712,7 +710,6 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
         </div>
       </div>
     </section>
-    <!-- Install：左邊是版本與相容性，右邊是四個步驟 -->
     <section class="section" id="install" aria-labelledby="install-title">
       <div class="container split install">
         <div class="install__intro">
@@ -790,7 +787,6 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
         </ol>
       </div>
     </section>
-    <!-- FAQ：問答直接排成可以掃讀的段落 -->
     <section class="section section--tinted" id="faq" aria-labelledby="faq-title" data-chapter="tint">
       <div class="container split faq">
         <h2 class="section-title" id="faq-title" data-reveal>常見問題</h2>
@@ -807,6 +803,12 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
             <p class="faq__a">背景更新時，如果貼文被刪除、帳號轉為私密、頁面不存在或網址被轉導，就會標記為失效並記下原因，例如 <code>post-not-found</code> 或
               <code>redirected</code>。之後只要貼文恢復可讀，下次更新就會自動解除。載入超過 60 秒仍拿不到結果時，只會記為這次更新失敗，不會標成失效。
             </p>
+          </div>
+          <div class="faq__item" data-reveal>
+            <h3 class="faq__q">即時預覽說「Threads 不提供這篇貼文的內嵌卡片」？</h3>
+            <p class="faq__a">Threads 對這篇的內嵌頁回了錯誤，可能是貼文已刪除、不公開，或只開放登入的人觀看，例如被列為敏感內容。若是最後一種，在同一個瀏覽器登入
+              threads.com 後按「重新載入」就能預覽；但這類貼文的內嵌碼放到網站上，訪客一樣看不到。開發者工具裡關於 <code>Permissions-Policy</code> 的警告來自 Meta
+              的回應標頭，正常的貼文也會出現，和這個錯誤無關。</p>
           </div>
           <div class="faq__item" data-reveal>
             <h3 class="faq__q">Threads 改版後抓不到內容怎麼辦？</h3>
@@ -840,7 +842,6 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
       </div>
     </section>
   </main>
-  <!-- Footer：反白收尾，名稱跨滿整個寬度 -->
   <footer class="site-footer" data-chapter="ink">
     <div class="container site-footer__inner">
       <div class="site-footer__top">

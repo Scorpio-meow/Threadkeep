@@ -7,7 +7,7 @@
 **[前往介紹頁](https://scorpio-meow.github.io/Threads-embedded-code/)**：功能導覽、互動清洗示範與安裝教學
 
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-D12F35?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threads-embedded-code/)
-[![Version](https://img.shields.io/badge/version-2.4.1-blue?style=for-the-badge)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue?style=for-the-badge)](./manifest.json)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
@@ -199,7 +199,8 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
   - **原生內嵌預覽 (Official Embed)**：遵循 Chrome Manifest V3 與 Threads 官方嵌入規範，透過安全 Frame 直接載入官方即時卡片，呈現完整的互動按鈕與動態樣式。
   - **原始碼與中繼資料 (Embed Code & Metadata)**：直接檢視乾淨的 `<blockquote>` 代碼與貼文中繼屬性對照表格。
 - **官方標準寬度與高度自適應**：預覽寬度固定為 Threads 官方標準的 658px；高度由注入至 iframe 的 Content Script 量測 `.Embed` 容器後回報，長短貼文皆精準貼合，不留多餘空白或捲軸。
-- **實際載入狀態回饋**：區分「載入中」、「載入逾時（10 秒）」與「載入失敗」三種狀態，逾時或失敗時顯示錯誤說明與「重新載入」按鈕；若該貼文沒有可用連結，則直接提示改看「原始碼與中繼資料」分頁。
+- **實際載入狀態回饋**：區分「載入中」、「載入逾時（10 秒）」與「載入失敗」三種狀態，逾時或失敗時顯示錯誤說明與「重新載入」按鈕；若該貼文沒有可用連結，則直接提示改看「原始碼與中繼資料」分頁。Threads 不提供內嵌的貼文（`/embed` 回 HTTP 500）會顯示中文說明，不會出現 Meta 的英文錯誤頁。
+- **帶著登入狀態預覽**：預覽從 `www.threads.com` 載入，會沿用瀏覽器的 Threads 登入狀態；只開放登入者觀看的貼文（例如被列為敏感內容），登入 Threads 後也能預覽，但這類貼文的內嵌碼放到網站上，訪客仍然看不到。
 - **全方位快捷鍵與導覽**：支援鍵盤 `ESC` 關閉、左/右方向鍵無縫切換上一篇/下一篇貼文、一鍵複製內嵌碼及直接開啟原文。
 
 ### 5. 背景循序同步與失效監控佇列
@@ -252,7 +253,7 @@ Threads 平台上有大量優質的程式設計分享與技術短文，然而官
 - **完整 Modal 無障礙語意**：所有對話框均具備 `role="dialog"`、`aria-modal="true"` 與標題／描述關聯；開啟時自動聚焦、`Tab` 焦點鎖定於對話框內、`ESC` 可關閉，關閉後焦點自動回到觸發按鈕。
 - **可復原的刪除與清除**：單篇刪除、批次刪除與清除全部資料後，會顯示帶有「復原」按鈕的提示（預設 8 秒）；滑鼠移到提示上或鍵盤焦點停在「復原」按鈕時暫停倒數。同一時間僅保留一則復原提示，避免舊快照回捲較新的變更。
 - **即時語音回饋**：Popup、Dashboard 的 Toast 容器與注入 Threads 頁面的通知皆為 live region（一般訊息 `role="status"`、錯誤訊息 `role="alert"`）。一般訊息至少顯示 4 秒、錯誤至少 6 秒，較長的訊息依字數延長（每字約 0.12 秒），滑鼠移到提示上時暫停倒數。
-- **清楚的焦點外框**：鍵盤焦點以 2px 實線外框標示（淺色 `#2563eb`、深色 `#60a5fa`），與周圍背景的對比至少 4.6:1。
+- **清楚的焦點外框**：按鈕與連結的鍵盤焦點以 2px 實線外框標示（淺色 `#2563eb`、深色 `#60a5fa`），與周圍背景的對比至少 4.6:1；輸入框與下拉選單改用內圈 2px 實色（`#1d4ed8`／`#93c5fd`，對比至少 6.5:1）加外圈光暈的雙環，高對比模式下改回系統顏色外框。
 - **深色與高對比模式**：控制面板右上角的「外觀」選單可選跟隨系統、淺色或深色，設定存在 `chrome.storage.local`，Popup 與 Threads 頁面上的通知一併套用；顏色集中定義在 `:root` 的 CSS 變數；Windows 高對比模式（`forced-colors`）下，焦點外框、勾選框、選取狀態與進度條改用系統顏色標示。
 - **可操作的標籤與作者徽章**：統計雲徽章由 `span` 改為 `button` 並標註 `aria-pressed`，可用鍵盤聚焦並切換篩選狀態。
 - **螢幕閱讀器結構**：貼文卡片是清單項目、作者名稱是標題；卡片的勾選框與操作按鈕名稱帶上作者與發文時間（例如「刪除：user174 於 18 小時前發布的貼文」），相對時間另附完整日期時間。搜尋、篩選與勾選後會朗讀結果數量（「找到 5 篇貼文」「已選取 3 篇」）。
@@ -418,7 +419,7 @@ sequenceDiagram
 
     User->>Modal: 點擊卡片「即時預覽」或按方向鍵
     Modal->>Modal: 解析文章 postLink 產生標準 Embed URL
-    Modal->>Iframe: 設定 iframe.src = https://www.threads.net/.../embed
+    Modal->>Iframe: 設定 iframe.src = https://www.threads.com/.../embed
     Modal->>Modal: 顯示載入動畫 (Spinner) 並啟動 10 秒逾時計時器
     Iframe->>ThreadsEmbed: 載入原生卡片資源
     ThreadsEmbed-->>Iframe: 渲染互動卡片
@@ -428,6 +429,9 @@ sequenceDiagram
     Modal->>Iframe: 動態調整 iframe.style.height = targetHeight (100~5000px)
     alt 載入完成
         Modal->>Modal: 清除計時器，隱藏 Spinner，呈現完美貼合之原生預覽
+    else Threads 不提供內嵌（HTTP 500）
+        Content->>Modal: window.postMessage ({ type: 'THREADS_EMBED_ERROR' })
+        Modal->>User: 顯示中文說明，隱藏 Meta 錯誤頁
     else 逾時或載入失敗
         Modal->>User: 顯示錯誤說明與「重新載入」按鈕
     end
@@ -579,11 +583,15 @@ for (const article of articlesNeedingUpdate) {
 
 ### 6. 即時預覽動態高度自適應通訊
 
-Threads 官方 `/embed` 頁面不會主動回報高度，因此本擴充功能透過 `manifest.json` 的 `all_frames: true` 將 `content.js` 一併注入預覽 iframe。當腳本偵測到自己位於 `/embed` 或非頂層框架時，改走 `handleEmbedFrameResize()` 分支：以 `ResizeObserver` 觀測 `.Embed` 容器與 `body` 的第一個子元素，容器被替換時由只看節點增減的 `MutationObserver` 重新掛上觀測。量測合併到每個畫面影格最多一次，高度有變化才將量得的高度回傳父視窗：
+Threads 官方 `/embed` 頁面只會對父視窗送出一個不帶型別的數字字串，無法和其他訊息區分，因此本擴充功能透過 `manifest.json` 的 `all_frames: true` 將 `content.js` 一併注入預覽 iframe。當腳本偵測到自己位於 `/embed` 或非頂層框架時，改走 `handleEmbedFrameResize()` 分支：以 `ResizeObserver` 觀測 `.Embed` 容器與 `body` 的第一個子元素，容器被替換時由只看節點增減的 `MutationObserver` 重新掛上觀測。量測合併到每個畫面影格最多一次，高度有變化才將量得的高度回傳父視窗：
 
 ```javascript
-window.parent.postMessage({ type: 'THREADS_EMBED_RESIZE', height: h }, '*');
+window.parent.postMessage({ type: 'THREADS_EMBED_RESIZE', height: h }, parentOrigin);
 ```
+
+Threads 不提供內嵌的貼文（已刪除、不公開，或只開放登入的使用者觀看，例如被列為敏感內容），`/embed` 會回 HTTP 500 與 Meta 的錯誤頁；這類貼文的內嵌碼放到網站上同樣顯示不出來。預覽從 `www.threads.com` 載入，會帶著瀏覽器的 Threads 登入狀態，所以只開放登入者觀看的貼文在已登入時可以正常預覽。iframe 一樣會觸發 `load`，所以 `content.js` 在 `/embed` 頁找不到 `.Embed` 容器時改送 `{ type: 'THREADS_EMBED_ERROR' }`。儀表板確認訊息來自目前的預覽 iframe 後，顯示自己的錯誤提示並隱藏錯誤頁，之後的 `load` 事件也不會再把狀態改回「已載入」。
+
+`content.js` 會注入所有 threads.com 框架，包括其他網站嵌入的 Threads iframe，但只有在直接父視窗是本擴充功能的頁面時才送訊息：以 `location.ancestorOrigins[0]` 的 host 比對 `chrome.runtime.id`，相符才送出，而且 `postMessage` 只指定該來源，不用 `'*'`。其他網站嵌入的 Threads iframe 不會收到 `THREADS_EMBED_RESIZE` 或 `THREADS_EMBED_ERROR`，也就看不出瀏覽器裝了本擴充功能。
 
 儀表板端在驗證來源網域後套用高度，並相容 Threads 官方可能送出的 `MEASURE` 訊息格式：
 
@@ -846,6 +854,13 @@ const posts = [
 > - 這代表貼文可能已被原作者刪除、帳號被設為私密，或原作者封鎖了匿名存取。
 > - 背景分頁若確認頁面不存在（例如 404 或已刪除），也會判定為失效。
 > - 若貼文隨後恢復正常，在下一次更新時，系統偵測到內容便會自動將其回復為 `active` 狀態。
+> - 只開放登入者觀看的貼文（例如被列為敏感內容），在已登入 Threads 的瀏覽器裡更新時會正常載入，不會被標成失效；未登入時會被導回 Threads 首頁，記為 `redirected`。
+
+> [!NOTE]
+> **問題：即時預覽顯示「Threads 不提供這篇貼文的內嵌卡片」？**
+> - Threads 對這篇的 `/embed` 回了 HTTP 500。可能是貼文已刪除、不公開，或只開放登入的使用者觀看。
+> - 若是只開放登入者觀看，在這個瀏覽器登入 threads.com 後按「重新載入」即可預覽。這類貼文的內嵌碼放到網站上，訪客一樣看不到，只能點連結到 Threads 觀看。
+> - 開發者工具裡的 `Error with Permissions-Policy header: Unrecognized feature: 'attribution-reporting'`（以及 `shared-storage`、`shared-storage-select-url`）是 Meta 回應標頭宣告了瀏覽器不認得的功能，正常的貼文也會出現，與載入失敗無關。
 
 > [!CAUTION]
 > **問題：Threads 官方改版後，擴充功能無法正常擷取？**
@@ -901,6 +916,27 @@ cd threads-embedded-code
 ## 版本更新紀錄 (Changelog)
 
 本專案嚴格遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 格式規範。
+
+### [2.5.0] - 2026-10-23
+
+#### 改善
+- 介面改為無邊框：Popup、控制面板與 Threads 頁面的通知改用相差 1%–3% 明度的底色分層（淺色 `#f5f5f3`／`#fcfcfb`，深色 `#0b0b0a`／`#151515`／`#1a1a19`／`#20201e`），不再使用純黑；文字與陰影改成同一組暖灰，按鈕、卡片與輸入框拿掉框線、漸層與浮起陰影，只剩對話框、提示與預覽抽屜這類浮層保留陰影。介紹頁同步換成同一組色階。
+- 深色模式的字重全部減 40（例如 400 → 360、800 → 760），避免淺色字在深色底上發脹。為了讓非整百字重生效，介面字型由 Fira Sans 改為可變字型 Manrope 與 Noto Sans TC，Fira Code 改載入可變字重。
+- 搜尋框、下拉選單與文字區聚焦時改用加深的雙環：內圈 2px 實色、外圈淡色光暈，搭配內凹陰影；高對比模式下改用系統顏色外框。
+- 提示訊息與 Threads 頁面的通知改為逐字浮現：每字 90ms 從 `blur(6px)` 轉為清晰，相鄰字錯開 30ms；螢幕閱讀器念的是完整句子，系統要求減少動態時直接整句顯示。介紹頁示範的狀態列也套用同樣效果。
+- 複製內嵌程式碼後，按鈕原地顯示「已複製」，2.5 秒後自動淡回；原本是另外跳出提示。介紹頁的複製按鈕回饋也由 1.8 秒改為 2.5 秒並改成淡入淡出。
+- 控制面板卡片的「展開全文」改用 Grid 的 `0fr → 1fr` 過渡平滑展開與收合，收起時保留前五行並淡出；「篩選數值」選單也改為滑開，不再瞬間出現。
+- 動效分成兩種手感：勾選框與複製成功的勾勾用欠阻尼彈簧（剛度 380、阻尼 18，微彈）；對話框與即時預覽抽屜的進場用過阻尼彈簧（剛度 1200、阻尼 80，不回彈）。
+- 計數、統計數字、時間與進度改用等寬數字（`tabular-nums`），數字變動時不再左右跳動；內文段落加上 `text-wrap: pretty` 避免最後一行只剩一個字；按鈕與連結裡的圖示以 `vertical-align: -0.125em` 對齊文字中線。
+- 介紹頁的介面截圖與分享圖以新樣式和同一批虛構資料重拍；功能特寫改為透明背景，直接落在介紹頁的底色上。
+- `content.js` 只在預覽 iframe 的父視窗是本擴充功能頁面時才送高度與錯誤訊息，並只送往該來源；原本在任何網站的 Threads 內嵌 iframe 裡都會對父頁面送出 `THREADS_EMBED_RESIZE`，可能干擾那些網站，也透露瀏覽器裝了本擴充功能。
+- 即時預覽改從 `www.threads.com` 載入內嵌卡片（原本是 `www.threads.net`），與 Threads 目前的網域一致。Threads 的登入狀態存在 threads.com，改網域後預覽會帶著登入狀態載入：只開放登入者觀看的貼文（例如被列為敏感內容），在已登入 Threads 的瀏覽器裡也能預覽（已在 Comet 實測）。這類貼文的內嵌碼放到一般網站上，訪客仍然看不到。
+
+#### 修正
+- 修復 Popup 的「已選取 N 篇」與兩個介面的「篩選數值」選單永遠不會出現：`.is-hidden` 改為 `display: none !important` 後，用 `style.display` 切換的元件被蓋住。
+- 修復控制面板對話框與即時預覽的標題樣式沒有套用：樣式表仍寫 `h4`，標題早已改為 `h2`。
+- 修復控制面板停用中的按鈕在滑鼠移入時底色變成外層背景。
+- 修復即時預覽遇到 Threads 不提供內嵌的貼文（已刪除、不公開，或只開放登入的使用者觀看）時，直接顯示 Meta 的英文錯誤頁「Sorry, something went wrong」：Threads 對這類貼文的 `/embed` 回 HTTP 500，iframe 仍觸發 `load`，預覽被當成載入成功。現在由預覽 iframe 內的 `content.js` 回報，改顯示中文說明，並引導改看「原始碼與中繼資料」或在 Threads 開啟原文。
 
 ### [2.4.1] - 2026-10-23
 

@@ -41,7 +41,23 @@ async function safeStorageSet(obj) {
     throw err;
   }
 }
+function getExtensionParentOrigin() {
+  if (!isExtensionAlive()) return '';
+  try {
+    const parentOrigin = location.ancestorOrigins && location.ancestorOrigins[0];
+    if (parentOrigin && new URL(parentOrigin).host === chrome.runtime.id) {
+      return parentOrigin;
+    }
+  } catch (_) { }
+  return '';
+}
 function handleEmbedFrameResize() {
+  const parentOrigin = getExtensionParentOrigin();
+  if (!parentOrigin) return;
+  if (location.pathname.includes('/embed') && !document.querySelector('.Embed, [class*="EmbedContainer"]')) {
+    window.parent.postMessage({ type: 'THREADS_EMBED_ERROR' }, parentOrigin);
+    return;
+  }
   const findEmbedElement = () => document.querySelector('.Embed') ||
     document.querySelector('div[class*="Embed"]') ||
     document.querySelector('div[id^="u_0_0_"] > div') ||
@@ -89,7 +105,7 @@ function handleEmbedFrameResize() {
       window.parent.postMessage({
         type: 'THREADS_EMBED_RESIZE',
         height: h
-      }, '*');
+      }, parentOrigin);
     }
   };
   const scheduleNotify = () => {
@@ -774,6 +790,23 @@ async function saveArticle(articleData, button) {
 const NOTIFICATION_DURATION_MS = 4000;
 const NOTIFICATION_ERROR_DURATION_MS = 6000;
 const NOTIFICATION_MS_PER_CHAR = 120;
+const notificationSegmenter = new Intl.Segmenter('zh-TW', { granularity: 'grapheme' });
+function appendStreamedNotificationText(target, text) {
+  const spoken = document.createElement('span');
+  spoken.className = 'threads-save-notification__sr';
+  spoken.textContent = text;
+  const visual = document.createElement('span');
+  visual.setAttribute('aria-hidden', 'true');
+  let index = 0;
+  for (const { segment } of notificationSegmenter.segment(text)) {
+    const char = document.createElement('span');
+    char.className = 'threads-save-notification__char';
+    char.style.setProperty('--char-index', index++);
+    char.textContent = segment;
+    visual.appendChild(char);
+  }
+  target.append(spoken, visual);
+}
 function showNotification(message, options = {}) {
   const isError = options.type === 'error';
   const notification = document.createElement('div');
@@ -786,7 +819,7 @@ function showNotification(message, options = {}) {
   if (themePreference === 'light' || themePreference === 'dark') {
     notification.dataset.theme = themePreference;
   }
-  notification.textContent = message;
+  appendStreamedNotificationText(notification, message);
   document.body.appendChild(notification);
   const baseDuration = isError ? NOTIFICATION_ERROR_DURATION_MS : NOTIFICATION_DURATION_MS;
   let remaining = options.duration || Math.max(baseDuration, message.length * NOTIFICATION_MS_PER_CHAR);

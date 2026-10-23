@@ -1,37 +1,40 @@
 :root {
   color-scheme: light;
-  --bg: #f7f7f8;
-  --bg-tinted: #eeeef0;
-  --field: #e5e5e9;
-  --panel: #fdfdfd;
-  --ink: #16161a;
-  --ink-2: #44444c;
-  --ink-3: #62626c;
-  --line-strong: rgb(22 22 26 / 0.16);
+  --bg: #f5f5f3;
+  --bg-tinted: #efefec;
+  --field: #e8e8e5;
+  --panel: #fcfcfb;
+  --ink: #1c1c1a;
+  --ink-2: #45453f;
+  --ink-3: #63635d;
+  --ring-inner: #b4232a;
+  --ring-outer: rgb(209 47 53 / 0.16);
+  --field-bite: rgb(28 28 26 / 0.06);
+  --field-focus-ring: inset 0 1px 2px var(--field-bite), 0 0 0 2px var(--ring-inner), 0 0 0 5px var(--ring-outer);
   --accent: #d12f35;
   --accent-ink: #b4232a;
   --accent-soft: rgb(209 47 53 / 0.08);
   --accent-line: rgb(209 47 53 / 0.4);
   --on-accent: #fff8f8;
-  --btn-primary-bg: #16161a;
-  --btn-primary-hover: #2e2e36;
-  --btn-primary-fg: #fafafb;
-  --invert-bg: #16161a;
-  --invert-ink: #ededf0;
-  --invert-ink-2: #a8a8b2;
-  --code-bg: #16161a;
-  --code-ink: #dcdce2;
-  --tok-keyword: #f4f4f6;
+  --btn-primary-bg: #1c1c1a;
+  --btn-primary-hover: #30302d;
+  --btn-primary-fg: #fcfcfb;
+  --invert-bg: #1c1c1a;
+  --invert-ink: #ededea;
+  --invert-ink-2: #a8a8a2;
+  --code-bg: #1c1c1a;
+  --code-ink: #dcdcd8;
+  --tok-keyword: #f5f5f3;
   --tok-string: #ff9ea2;
-  --tok-comment: #8b8b96;
+  --tok-comment: #8f8f89;
   --tok-number: #ffc8ca;
-  --tok-key: #b9b9c4;
-  --overlay-shadow: 0 24px 48px -24px rgb(22 22 30 / 0.35), 0 8px 20px -12px rgb(22 22 30 / 0.2);
+  --tok-key: #bdbdb6;
+  --overlay-shadow: 0 24px 48px -24px rgb(28 28 26 / 0.35), 0 8px 20px -12px rgb(28 28 26 / 0.2);
   --shot-filter: none;
   --when-light: inline-block;
   --when-dark: none;
   --font-sans: "Manrope", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, "Noto Sans TC", monospace; /* taste-skill-ignore: 只用在 pre、code、kbd */
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, "Noto Sans TC", monospace;
   --step-h2: clamp(1.875rem, 3.4vw, 3rem);
   --step-h3: clamp(1.25rem, 1.65vw, 1.5rem);
   --step-body: 1.0625rem;
@@ -46,6 +49,19 @@
   --nav-h: 64px;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --stream-char-duration: 90ms;
+  --stream-char-stagger: 30ms;
+  --stream-blur: 6px;
+  --spring-pop: linear(0, 0.045, 0.161, 0.32, 0.498, 0.673, 0.833, 0.966, 1.069, 1.139, 1.18, 1.195, 1.189, 1.168, 1.138, 1.104, 1.07, 1.038, 1.011, 0.99, 0.975, 0.966, 0.962, 0.963, 0.966, 0.972, 0.978, 0.985, 0.992, 0.997, 1.001, 1.004, 1.006, 1.007, 1.007, 1.007, 1.006, 1.004, 1.003, 1.002, 1.001, 1, 0.999, 0.999, 0.999, 0.999, 0.999, 0.999, 1);
+  --spring-pop-duration: 780ms;
+  --feedback-fade: 0.24s;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --fw-heavy: 800;
+  --fw-black: 900;
   --z-nav: 50;
   --z-skip: 60;
 }
@@ -53,55 +69,71 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0e0e11;
-    --bg-tinted: #151519;
-    --field: #24242b;
-    --panel: #1c1c21;
-    --ink: #ededf0;
-    --ink-2: #b6b6c0;
-    --ink-3: #94949f;
-    --line-strong: rgb(237 237 240 / 0.16);
+    --bg: #0b0b0a;
+    --bg-tinted: #151515;
+    --field: #20201e;
+    --panel: #1a1a19;
+    --ink: #ededea;
+    --ink-2: #b8b8b2;
+    --ink-3: #96968f;
+    --ring-inner: #f2676c;
+    --ring-outer: rgb(242 103 108 / 0.22);
+    --field-bite: rgb(11 11 10 / 0.5);
     --accent-ink: #f2676c;
     --accent-soft: rgb(242 103 108 / 0.12);
     --accent-line: rgb(242 103 108 / 0.45);
-    --btn-primary-bg: #ededf0;
+    --btn-primary-bg: #ededea;
     --btn-primary-hover: #ffffff;
-    --btn-primary-fg: #111114;
-    --invert-bg: #1c1c22;
-    --invert-ink: #ededf0;
-    --invert-ink-2: #a2a2ad;
-    --code-bg: #08080b;
-    --overlay-shadow: 0 24px 48px -20px rgb(0 0 0 / 0.75), 0 8px 20px -12px rgb(0 0 0 / 0.5);
+    --btn-primary-fg: #151515;
+    --invert-bg: #1a1a19;
+    --invert-ink: #ededea;
+    --invert-ink-2: #a3a39d;
+    --code-bg: #20201e;
+    --overlay-shadow: 0 24px 48px -20px rgb(11 11 10 / 0.8), 0 8px 20px -12px rgb(11 11 10 / 0.55);
     --shot-filter: brightness(0.92) saturate(0.95);
     --when-light: none;
     --when-dark: inline-block;
+    --fw-regular: 360;
+    --fw-medium: 460;
+    --fw-semibold: 560;
+    --fw-bold: 660;
+    --fw-heavy: 760;
+    --fw-black: 860;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0e0e11;
-  --bg-tinted: #151519;
-  --field: #24242b;
-  --panel: #1c1c21;
-  --ink: #ededf0;
-  --ink-2: #b6b6c0;
-  --ink-3: #94949f;
-  --line-strong: rgb(237 237 240 / 0.16);
+  --bg: #0b0b0a;
+  --bg-tinted: #151515;
+  --field: #20201e;
+  --panel: #1a1a19;
+  --ink: #ededea;
+  --ink-2: #b8b8b2;
+  --ink-3: #96968f;
+  --ring-inner: #f2676c;
+  --ring-outer: rgb(242 103 108 / 0.22);
+  --field-bite: rgb(11 11 10 / 0.5);
   --accent-ink: #f2676c;
   --accent-soft: rgb(242 103 108 / 0.12);
   --accent-line: rgb(242 103 108 / 0.45);
-  --btn-primary-bg: #ededf0;
+  --btn-primary-bg: #ededea;
   --btn-primary-hover: #ffffff;
-  --btn-primary-fg: #111114;
-  --invert-bg: #1c1c22;
-  --invert-ink: #ededf0;
-  --invert-ink-2: #a2a2ad;
-  --code-bg: #08080b;
-  --overlay-shadow: 0 24px 48px -20px rgb(0 0 0 / 0.75), 0 8px 20px -12px rgb(0 0 0 / 0.5);
+  --btn-primary-fg: #151515;
+  --invert-bg: #1a1a19;
+  --invert-ink: #ededea;
+  --invert-ink-2: #a3a39d;
+  --code-bg: #20201e;
+  --overlay-shadow: 0 24px 48px -20px rgb(11 11 10 / 0.8), 0 8px 20px -12px rgb(11 11 10 / 0.55);
   --shot-filter: brightness(0.92) saturate(0.95);
   --when-light: none;
   --when-dark: inline-block;
+  --fw-regular: 360;
+  --fw-medium: 460;
+  --fw-semibold: 560;
+  --fw-bold: 660;
+  --fw-heavy: 760;
+  --fw-black: 860;
 }
 
 *,
@@ -128,6 +160,7 @@ body {
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: var(--step-body);
+  font-weight: var(--fw-regular);
   line-height: 1.75;
   font-kerning: normal;
   -webkit-font-smoothing: antialiased;
@@ -158,10 +191,25 @@ button {
   cursor: pointer;
 }
 
+textarea {
+  font-weight: inherit;
+}
+
 h1,
 h2,
 h3 {
+  font-weight: var(--fw-bold);
   line-height: 1.3;
+}
+
+strong,
+b,
+th {
+  font-weight: var(--fw-bold);
+}
+
+p {
+  text-wrap: pretty;
 }
 
 code,
@@ -186,7 +234,7 @@ kbd {
   border-radius: 6px;
   background: var(--field);
   font-size: var(--step-code);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   line-height: 1.6;
   text-align: center;
 }
@@ -267,7 +315,7 @@ kbd {
   border-radius: var(--radius-pill);
   background: var(--ink);
   color: var(--bg);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .skip-link:focus {
@@ -276,7 +324,7 @@ kbd {
 
 .text-link {
   color: inherit;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   text-decoration: underline;
   text-decoration-color: var(--accent-line);
   text-decoration-thickness: 2px;
@@ -293,10 +341,9 @@ kbd {
   width: 1em;
   height: 1em;
   margin-left: 0.15em;
-  vertical-align: -0.12em;
+  vertical-align: -0.125em;
 }
 
-/* 按鈕：一律全圓角、單一填色，不用陰影 */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -306,7 +353,7 @@ kbd {
   padding: 0 20px;
   border-radius: var(--radius-pill);
   font-size: var(--step-small);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   line-height: 1;
   white-space: nowrap;
   transition: transform 0.25s var(--ease-out), background-color 0.2s, color 0.2s;
@@ -374,7 +421,6 @@ kbd {
   transform: scale(0.94);
 }
 
-/* 導覽列：背景跟著底下那一章的底色換 */
 .site-nav {
   --nav-bg: var(--bg);
   --nav-ink: var(--ink);
@@ -419,7 +465,7 @@ kbd {
   gap: 10px;
   min-width: 0;
   margin-right: auto;
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
   letter-spacing: 0.01em;
 }
 
@@ -488,7 +534,7 @@ kbd {
   border-radius: var(--radius);
   background: var(--panel);
   color: var(--ink);
-  box-shadow: var(--overlay-shadow); /* taste-skill-ignore: 展開的選單浮在頁面上 */
+  box-shadow: var(--overlay-shadow);
 }
 
 .site-nav[data-menu-open="true"] .site-nav__menu :focus-visible {
@@ -498,7 +544,7 @@ kbd {
 .site-nav__menu a {
   padding: 12px 14px;
   border-radius: var(--radius-s);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   transition: background-color 0.2s, color 0.2s;
 }
 
@@ -541,7 +587,7 @@ kbd {
     padding: 0;
     background: none;
     color: inherit;
-    box-shadow: none; /* taste-skill-ignore: 桌面版取消選單陰影 */
+    box-shadow: none;
     margin-right: 8px;
   }
 
@@ -555,7 +601,6 @@ kbd {
   }
 }
 
-/* Hero */
 .hero {
   padding-top: clamp(24px, 3.2vw, 48px);
 }
@@ -566,7 +611,7 @@ kbd {
 
 .hero__title {
   font-size: min(6.5rem, 9.6cqi);
-  font-weight: 900;
+  font-weight: var(--fw-black);
   line-height: 1.12;
   letter-spacing: -0.01em;
 }
@@ -694,7 +739,6 @@ kbd {
     animation: toast-in 0.7s var(--ease-out) 1.4s both;
   }
 
-  /* 捲動時彈出視窗與吉祥物比控制面板移動得快一點 */
   @supports (animation-timeline: view()) {
     .js .hero__popup {
       animation: rise-far 1.1s var(--ease-out) 0.4s both, drift-up linear both;
@@ -766,7 +810,7 @@ kbd {
 
 .facts__value {
   font-size: var(--step-h2);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
   line-height: 1.1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -774,7 +818,7 @@ kbd {
 
 .facts__label {
   margin-top: 6px;
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .facts__note {
@@ -789,7 +833,6 @@ kbd {
   }
 }
 
-/* Sections */
 .section {
   padding-block: clamp(88px, 9.5vw, 136px);
 }
@@ -805,7 +848,7 @@ kbd {
 
 .section-title {
   font-size: var(--step-h2);
-  font-weight: 900;
+  font-weight: var(--fw-black);
   line-height: 1.25;
   letter-spacing: -0.01em;
   text-wrap: balance;
@@ -816,7 +859,6 @@ kbd {
   margin-top: 20px;
 }
 
-/* How it works：放大的進度列 */
 .stages {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -831,7 +873,7 @@ kbd {
   padding: 20px 24px;
   border-radius: var(--radius);
   font-size: var(--step-h3);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
   line-height: 1.4;
 }
 
@@ -879,7 +921,6 @@ kbd {
   }
 }
 
-/* Tabs：分頁列是一塊填色，選中的分頁換成墨色 */
 .tabs__list {
   display: inline-flex;
   gap: 4px;
@@ -898,7 +939,7 @@ kbd {
   border-radius: var(--radius-pill);
   color: var(--ink-2);
   font-size: var(--step-small);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   transition: background-color 0.2s, color 0.2s;
 }
 
@@ -970,7 +1011,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
 
 .tok-keyword {
   color: var(--tok-keyword);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .tok-string {
@@ -989,7 +1030,6 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   color: var(--tok-key);
 }
 
-/* Demo：這是真的介面片段（data-ui），保留輸入框的框線 */
 .demo {
   padding: clamp(16px, 2.4vw, 32px);
   border-radius: var(--radius);
@@ -1015,7 +1055,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
 .demo__samples-label {
   margin-right: 4px;
   font-size: var(--step-small);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .chip {
@@ -1025,7 +1065,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   background: var(--field);
   color: var(--ink);
   font-size: var(--step-small);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   transition: background-color 0.2s, color 0.2s, transform 0.2s var(--ease-out);
 }
 
@@ -1047,6 +1087,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   align-items: center;
   gap: 8px;
   font-size: var(--step-small);
+  font-variant-numeric: tabular-nums;
   color: var(--ink-2);
 }
 
@@ -1100,7 +1141,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   min-height: 36px;
   margin-bottom: 10px;
   font-size: var(--step-small);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .demo__pane-head {
@@ -1120,7 +1161,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
 .demo__result {
   height: 440px;
   border-radius: var(--radius-s);
-  border: 1px solid var(--line-strong); /* taste-skill-ignore: data-ui 示範裡的輸入框 */
+  border: 1px solid transparent;
   background: var(--bg);
   font-family: var(--font-sans);
   font-size: var(--step-small);
@@ -1133,10 +1174,21 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   color: var(--ink);
   resize: vertical;
   tab-size: 2;
+  outline: none;
+  transition: box-shadow 0.2s;
 }
 
+.demo__input:focus,
 .demo__input:focus-visible {
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--field-focus-ring);
+}
+
+@media (forced-colors: active) {
+  .demo__input:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
 }
 
 .demo__result {
@@ -1289,7 +1341,26 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   min-height: 1.6em;
   margin-top: 10px;
   font-size: var(--step-small);
+  font-variant-numeric: tabular-nums;
   color: var(--ink-2);
+}
+
+.stream-char {
+  animation: stream-in var(--stream-char-duration) var(--ease-out-cubic) both;
+  animation-delay: calc(var(--char-index) * var(--stream-char-stagger));
+}
+
+@keyframes stream-in {
+  from {
+    opacity: 0;
+    filter: blur(var(--stream-blur));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-char {
+    animation: none;
+  }
 }
 
 .demo__note {
@@ -1309,7 +1380,6 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   }
 }
 
-/* Features：功能清單 + 選中功能的畫面 */
 .caps__list {
   display: none;
 }
@@ -1327,7 +1397,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   order: -1;
   margin-bottom: 16px;
   font-size: var(--step-h3);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .cap__media {
@@ -1375,7 +1445,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   width: 2.5em;
   padding-top: 6px;
   font-size: var(--step-small);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .pill-list {
@@ -1393,7 +1463,7 @@ html:not(.js) .export .tabs__panel+.tabs__panel {
   border-radius: var(--radius-pill);
   background: var(--panel);
   font-size: var(--step-small);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   white-space: nowrap;
 }
 
@@ -1449,7 +1519,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
     border-radius: var(--radius);
     color: var(--ink-2);
     font-size: var(--step-h3);
-    font-weight: 800;
+    font-weight: var(--fw-heavy);
     line-height: 1.35;
     text-align: left;
     transition: background-color 0.2s, color 0.2s, transform 0.25s var(--ease-out);
@@ -1476,7 +1546,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
   .js .cap__title {
     position: absolute;
     width: 1px;
-    height: 1px; /* taste-skill-ignore: 視覺隱藏，給螢幕閱讀器 */
+    height: 1px;
     margin: -1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
@@ -1488,7 +1558,6 @@ html:not(.js) .caps .tabs__panel[hidden] {
   }
 }
 
-/* Export */
 .export {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1509,7 +1578,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .export__file .icon {
@@ -1578,7 +1647,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 
 .ecosystem__title {
   font-size: var(--step-h3);
-  font-weight: 900;
+  font-weight: var(--fw-black);
 }
 
 .ecosystem__text {
@@ -1610,7 +1679,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
   border-radius: var(--radius-s);
   background: var(--field);
   font-size: var(--step-small);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
   line-height: 1.45;
   text-align: center;
   overflow-wrap: anywhere;
@@ -1624,7 +1693,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
   bottom: -30px;
   transform: translateX(-50%) rotate(90deg);
   color: var(--ink-3);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   line-height: 28px;
 }
 
@@ -1640,7 +1709,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 
 .pipeline__step--file code {
   font-size: var(--step-code);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 @media (min-width: 600px) {
@@ -1666,7 +1735,6 @@ html:not(.js) .caps .tabs__panel[hidden] {
   }
 }
 
-/* Privacy：權限表 */
 .privacy__head {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1711,13 +1779,13 @@ html:not(.js) .caps .tabs__panel[hidden] {
 .perm-table thead th {
   padding-top: 0;
   font-size: var(--step-small);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
   color: var(--ink-2);
 }
 
 .perm-table tbody th {
   width: 9em;
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .perm-table td:first-of-type {
@@ -1753,7 +1821,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
   .perm-table thead {
     position: absolute;
     width: 1px;
-    height: 1px; /* taste-skill-ignore: 視覺隱藏，給螢幕閱讀器 */
+    height: 1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
   }
@@ -1783,7 +1851,6 @@ html:not(.js) .caps .tabs__panel[hidden] {
   }
 }
 
-/* Developer notes */
 .dev__links {
   display: flex;
   flex-wrap: wrap;
@@ -1804,7 +1871,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 
 .note__title {
   font-size: var(--step-h3);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .note__text {
@@ -1826,7 +1893,6 @@ html:not(.js) .caps .tabs__panel[hidden] {
   }
 }
 
-/* Install */
 .install__facts {
   display: grid;
   gap: 12px;
@@ -1848,7 +1914,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 
 .release__version {
   font-size: var(--step-h2);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
   line-height: 1.15;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -1870,7 +1936,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 
 .aside-block__title {
   font-size: var(--step-body);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .aside-block p {
@@ -1890,7 +1956,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
   border-radius: var(--radius-pill);
   background: var(--panel);
   font-size: var(--step-small);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 
 .steps {
@@ -1902,7 +1968,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 
 .step__title {
   font-size: var(--step-h3);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
 }
 
 .step__text {
@@ -1959,21 +2025,40 @@ html:not(.js) .caps .tabs__panel[hidden] {
   transform: scale(0.94);
 }
 
-.cmd__copy .icon--done,
+.cmd__copy>.icon {
+  grid-area: 1 / 1;
+  transition: opacity var(--feedback-fade) ease, scale var(--feedback-fade) ease;
+}
+
+.cmd__copy .icon--done {
+  opacity: 0;
+  scale: 0.5;
+  color: var(--tok-string);
+}
+
 .cmd__copy[data-copied="true"] .icon--copy {
-  display: none;
+  opacity: 0;
 }
 
 .cmd__copy[data-copied="true"] .icon--done {
-  display: block;
-  color: var(--tok-string);
+  opacity: 1;
+  scale: 1;
+  transition: opacity var(--feedback-fade) ease, scale var(--spring-pop-duration) var(--spring-pop);
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .cmd__copy>.icon,
+  .cmd__copy[data-copied="true"] .icon--done {
+    scale: none;
+    transition: opacity var(--feedback-fade) ease;
+  }
 }
 
 .cmd__copy[data-copied="false"] {
   background: var(--accent);
 }
 
-/* FAQ：問答排成兩欄可以掃讀的段落 */
 .faq__text {
   max-width: 46em;
 }
@@ -1990,7 +2075,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
   display: inline;
   margin-right: 0.4em;
   font-size: var(--step-body);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
   line-height: inherit;
 }
 
@@ -2013,7 +2098,6 @@ html:not(.js) .caps .tabs__panel[hidden] {
   }
 }
 
-/* Footer：反白，名稱跨滿整個寬度 */
 .site-footer {
   padding-block: clamp(72px, 9vw, 128px) 32px;
   background: var(--invert-bg);
@@ -2060,7 +2144,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 .site-footer__heading {
   margin-bottom: 12px;
   font-size: var(--step-small);
-  font-weight: 800;
+  font-weight: var(--fw-heavy);
   color: var(--invert-ink-2);
 }
 
@@ -2071,7 +2155,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 }
 
 .site-footer__col a {
-  font-weight: 700;
+  font-weight: var(--fw-bold);
   text-decoration: underline;
   text-decoration-color: transparent;
   text-underline-offset: 4px;
@@ -2085,7 +2169,7 @@ html:not(.js) .caps .tabs__panel[hidden] {
 .site-footer__wordmark {
   margin-top: clamp(72px, 12vw, 176px);
   font-size: 10cqi;
-  font-weight: 900;
+  font-weight: var(--fw-black);
   line-height: 1;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -2105,7 +2189,6 @@ html:not(.js) .caps .tabs__panel[hidden] {
   color: var(--invert-ink);
 }
 
-/* 進場：每一段的標題、內文、畫面依序出現 */
 @media (prefers-reduced-motion: no-preference) {
   .js [data-reveal] {
     opacity: 0;

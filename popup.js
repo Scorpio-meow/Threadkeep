@@ -3,6 +3,7 @@ const TOAST_DURATION_MS = 4000;
 const TOAST_ERROR_DURATION_MS = 6000;
 const TOAST_MS_PER_CHAR = 120;
 const UNDO_TOAST_DURATION_MS = 8000;
+const COPY_FEEDBACK_MS = 2500;
 const RENDER_BATCH_SIZE = 30;
 const LOAD_MORE_ROOT_MARGIN = '300px';
 const ANNOUNCE_DELAY_MS = 100;
@@ -19,6 +20,10 @@ let renderedCount = 0;
 let loadMoreObserver = null;
 const searchTextCache = new WeakMap();
 const sortCollator = new Intl.Collator('zh-TW');
+const textSegmenter = new Intl.Segmenter('zh-TW', { granularity: 'grapheme' });
+const copyFeedbackTimers = new WeakMap();
+const copyFeedbackTemplate = document.createElement('template');
+copyFeedbackTemplate.innerHTML = '<span class="copy-feedback" aria-hidden="true"><span><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>已複製</span></span>';
 function pruneSelection() {
   const ids = new Set(allArticles.map(a => a.id));
   selectedArticleIds.forEach(id => {
@@ -311,11 +316,11 @@ function updateFilterValueOptions() {
       values.sort((a, b) => a.localeCompare(b, 'zh-TW'));
       break;
     default:
-      filterValueContainer.style.display = 'none';
+      filterValueContainer.classList.add('is-hidden');
       return;
   }
   if (values.length > 0) {
-    filterValueContainer.style.display = 'flex';
+    filterValueContainer.classList.remove('is-hidden');
     values.forEach(value => {
       const option = document.createElement('option');
       option.value = value;
@@ -324,7 +329,7 @@ function updateFilterValueOptions() {
       filterValueSelect.appendChild(option);
     });
   } else {
-    filterValueContainer.style.display = 'none';
+    filterValueContainer.classList.add('is-hidden');
   }
 }
 function getArticleSortKey(article, field) {
@@ -500,7 +505,7 @@ function createArticleCard(article) {
     statusBadge.className = 'tag';
     statusBadge.textContent = '失效貼文';
     statusBadge.title = article.expiredReason ? `原因：${article.expiredReason}` : '已歸類為失效貼文';
-    statusBadge.style.background = 'rgba(255, 48, 64, 0.12)';
+    statusBadge.style.background = 'var(--danger-soft)';
     statusBadge.style.color = 'var(--danger-color)';
     statusBadge.style.marginTop = '0';
     card.appendChild(statusBadge);
@@ -528,10 +533,13 @@ function createArticleCard(article) {
   actions.appendChild(link);
   if (article.embedCode) {
     const copyEmbedBtn = document.createElement('button');
-    copyEmbedBtn.className = 'action-btn copy-embed-btn';
+    copyEmbedBtn.className = 'action-btn copy-btn copy-embed-btn';
     copyEmbedBtn.setAttribute('data-article-id', article.id);
     copyEmbedBtn.dataset.action = 'copy-embed';
-    copyEmbedBtn.textContent = '複製內嵌程式碼';
+    const copyLabel = document.createElement('span');
+    copyLabel.className = 'copy-label';
+    copyLabel.textContent = '複製內嵌程式碼';
+    copyEmbedBtn.append(copyLabel, copyFeedbackTemplate.content.firstElementChild.cloneNode(true));
     copyEmbedBtn.setAttribute('aria-label', `複製內嵌程式碼：${articleLabel}`);
     actions.appendChild(copyEmbedBtn);
   }
@@ -550,7 +558,7 @@ function handleArticleListClick(e) {
   if (!actionEl || !e.currentTarget.contains(actionEl)) return;
   switch (actionEl.dataset.action) {
     case 'copy-embed':
-      copyEmbed(actionEl.dataset.articleId);
+      copyEmbed(actionEl.dataset.articleId, actionEl);
       break;
     case 'delete':
       deleteArticle(actionEl.dataset.articleId);
@@ -594,12 +602,12 @@ function updateSelectionUI() {
     countElement.textContent = `${filteredArticles.length} 篇 (已選 ${selectedArticleIds.size})`;
     if (selectionInfo) {
       selectionInfo.textContent = `已選取 ${selectedArticleIds.size} 篇`;
-      selectionInfo.style.display = 'inline';
+      selectionInfo.classList.remove('is-hidden');
     }
   } else {
     countElement.textContent = `${filteredArticles.length} 篇`;
     if (selectionInfo) {
-      selectionInfo.style.display = 'none';
+      selectionInfo.classList.add('is-hidden');
     }
   }
   if (selectAllCheckbox && filteredArticles.length > 0) {
@@ -672,7 +680,14 @@ if (typeof window !== 'undefined') {
     }
   };
 }
-async function copyEmbed(articleId) {
+function showCopyFeedback(button) {
+  clearTimeout(copyFeedbackTimers.get(button));
+  button.dataset.feedback = 'copied';
+  copyFeedbackTimers.set(button, setTimeout(() => {
+    delete button.dataset.feedback;
+  }, COPY_FEEDBACK_MS));
+}
+async function copyEmbed(articleId, button) {
   const article = allArticles.find(a => a.id === articleId);
   if (!article || !article.embedCode) {
     showToast('找不到內嵌程式碼');
@@ -680,10 +695,11 @@ async function copyEmbed(articleId) {
   }
   try {
     await navigator.clipboard.writeText(article.embedCode);
-    showToast('已複製內嵌程式碼');
+    showCopyFeedback(button);
+    announce('已複製內嵌程式碼');
   } catch (err) {
     console.error('[Popup] 複製失敗:', err);
-    showToast('複製失敗: ' + err.message);
+    showToast('複製失敗: ' + err.message, { type: 'error' });
   }
 }
 function getExportTargetArticles() {
@@ -961,7 +977,25 @@ function getToastDuration(message, isError) {
 }
 function fadeOutToast(toast) {
   toast.classList.add('fade-out');
-  toast.addEventListener('animationend', () => toast.remove());
+  toast.addEventListener('animationend', (e) => {
+    if (e.target === toast) toast.remove();
+  });
+}
+function appendStreamedText(target, text) {
+  const spoken = document.createElement('span');
+  spoken.className = 'sr-only';
+  spoken.textContent = text;
+  const visual = document.createElement('span');
+  visual.setAttribute('aria-hidden', 'true');
+  let index = 0;
+  for (const { segment } of textSegmenter.segment(text)) {
+    const char = document.createElement('span');
+    char.className = 'stream-char';
+    char.style.setProperty('--char-index', index++);
+    char.textContent = segment;
+    visual.appendChild(char);
+  }
+  target.append(spoken, visual);
 }
 function startToastTimer(toast, duration, onExpire) {
   let remaining = duration;
@@ -1003,7 +1037,7 @@ function showToast(message, options = {}) {
   const isError = options.type === 'error';
   const toast = document.createElement('div');
   toast.className = isError ? 'toast toast-error' : 'toast';
-  toast.textContent = message;
+  appendStreamedText(toast, String(message));
   container.appendChild(toast);
   const duration = options.duration || getToastDuration(message, isError);
   startToastTimer(toast, duration, () => fadeOutToast(toast));
@@ -1015,7 +1049,7 @@ function showUndoToast(message, onUndo, duration = UNDO_TOAST_DURATION_MS) {
   const toast = document.createElement('div');
   toast.className = 'toast toast-undo';
   const text = document.createElement('span');
-  text.textContent = message;
+  appendStreamedText(text, message);
   const undoBtn = document.createElement('button');
   undoBtn.className = 'toast-undo-btn';
   undoBtn.type = 'button';

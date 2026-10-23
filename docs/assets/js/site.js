@@ -1,10 +1,12 @@
 (() => {
   const root = document.documentElement;
   const { repo, branch } = root.dataset;
+  const textSegmenter = new Intl.Segmenter('zh-TW', { granularity: 'grapheme' });
   window.ThreadsSaverSite = Object.freeze({
     branch,
     rawFileUrl: (path) => `https://raw.githubusercontent.com/${repo}/${branch}/${path}`,
-    announce
+    announce,
+    streamText
   });
   const liveRegion = createLiveRegion();
   setupThemeToggle();
@@ -28,6 +30,22 @@
     requestAnimationFrame(() => {
       liveRegion.textContent = message;
     });
+  }
+  function streamText(target, text) {
+    const spoken = document.createElement('span');
+    spoken.className = 'sr-only';
+    spoken.textContent = text;
+    const visual = document.createElement('span');
+    visual.setAttribute('aria-hidden', 'true');
+    let index = 0;
+    for (const { segment } of textSegmenter.segment(text)) {
+      const char = document.createElement('span');
+      char.className = 'stream-char';
+      char.style.setProperty('--char-index', index++);
+      char.textContent = segment;
+      visual.append(char);
+    }
+    target.replaceChildren(spoken, visual);
   }
   function setupThemeToggle() {
     const button = document.querySelector('[data-theme-toggle]');
@@ -141,7 +159,7 @@
     });
   }
   function setupCopyButtons() {
-    const FEEDBACK_MS = 1800;
+    const FEEDBACK_MS = 2500;
     document.querySelectorAll('[data-copy]').forEach((button) => {
       const source = document.getElementById(button.dataset.copy);
       const idleLabel = button.getAttribute('aria-label');
