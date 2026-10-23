@@ -7,7 +7,7 @@
 **[前往介紹頁](https://scorpio-meow.github.io/Threads-embedded-code/)**：功能導覽、互動清洗示範與安裝教學
 
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-D12F35?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threads-embedded-code/)
-[![Version](https://img.shields.io/badge/version-2.5.0-blue?style=for-the-badge)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-2.6.0-blue?style=for-the-badge)](./manifest.json)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
@@ -924,7 +924,7 @@ cd threads-embedded-code
 
 本專案嚴格遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/) 格式規範。
 
-### [Unreleased]
+### [2.6.0] - 2026-10-23
 
 #### 新增
 - 內嵌可用性檢查：「更新貼文資料」與在 Threads 儲存貼文時，會以同源、不帶 Cookie 的請求檢查 Threads 是否提供這篇的內嵌卡片，結果存成 `embeddable` 與 `embeddableCheckedAt`。回 HTTP 500 記為 `false`，回 200 且含 `.Embed` 記為 `true`，其他情況不寫入。精選格式與完整備份都會匯出這兩個欄位（檢查過才有），匯入時保留；精選貼文網站據此對只開放登入者觀看的貼文顯示具體說明。
