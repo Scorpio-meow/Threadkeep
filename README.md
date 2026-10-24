@@ -9,7 +9,7 @@
 **[前往介紹頁](https://scorpio-meow.github.io/Threadkeep/)**：功能導覽、互動清洗示範與安裝教學
 
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-D12F35?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threadkeep/)
-[![Version](https://img.shields.io/badge/version-2.7.0-blue?style=for-the-badge)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-2.8.0-blue?style=for-the-badge)](./manifest.json)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
@@ -46,6 +46,7 @@
   - [8. 互動式標籤與作者統計雲](#8-互動式標籤與作者統計雲)
   - [9. 智慧容錯匯入與多格式匯出](#9-智慧容錯匯入與多格式匯出)
   - [10. 無障礙設計與可復原操作](#10-無障礙設計與可復原操作)
+  - [11. 音效、背景音樂與視覺質感](#11-音效背景音樂與視覺質感)
 - [技術規格與技術棧](#技術規格與技術棧)
 - [專案目錄與模組架構](#專案目錄與模組架構)
   - [專案檔案結構](#專案檔案結構)
@@ -73,7 +74,7 @@
   - [智慧匯入解析機制](#智慧匯入解析機制)
 - [操作指南與快捷鍵速查](#操作指南與快捷鍵速查)
   - [控制面板即時預覽快捷鍵](#控制面板即時預覽快捷鍵)
-  - [儀表板常用操作對照表](#儀表板常用操作對照表)
+  - [控制面板常用操作對照表](#控制面板常用操作對照表)
 - [常見問題與疑難排解 (FAQ)](#常見問題與疑難排解-faq)
 - [開發與貢獻指南](#開發與貢獻指南)
   - [開發與修改流程](#開發與修改流程)
@@ -95,8 +96,8 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 | **無感自動擷取** | 在貼文選單點「取得內嵌程式碼」，內嵌碼、內文、作者、發文時間與標籤就自動存下，不必另外複製。 |
 | **原始排版保真** | 採用頂層文字容器分析演算法，完整保留段落與換行，不會把多行內文壓成一行。 |
 | **多層雜訊過濾** | 內建 44 條過濾正規表達式，自動剝離作者簡介、相對發文時間、輪播計數及平台導覽文字。 |
-| **本機隱私安全** | 資料 100% 留存於瀏覽器本機儲存區，不會上傳到任何伺服器；對外連線僅限 Threads 官方網域（即時預覽與背景更新）及介面字型所用的 Google Fonts，無追蹤、無遙測。 |
-| **靈活跨端複用** | 提供三種匯出，都是內容為 `const posts = [...]` 的 `.js` 檔：「匯出 JS 嵌入代碼」只含內嵌碼（`threads-embed-codes-*.js`），可直接貼進網頁；「匯出精選資料」附上連結、作者、內文與標籤（`threads-featured-data-*.js`），給 Threadfolio 當資料來源；「匯出完整資料」保留發文時間、失效狀態等全部欄位（`threads-full-data-*.js`），用於備份與還原。 |
+| **本機隱私安全** | 資料 100% 留存於瀏覽器本機儲存區，不會上傳到任何伺服器；對外連線僅限 Threads 官方網域（即時預覽與背景更新）及介面字型所用的 Google Fonts，音效與背景音樂隨擴充功能打包，無追蹤、無遙測。 |
+| **靈活跨端複用** | 提供三種匯出，都是內容為 `const posts = [...]` 的 `.js` 檔：「僅內嵌碼」只含內嵌碼（`threads-embed-codes-*.js`），可直接貼進網頁；「精選格式」附上連結、作者、內文與標籤（`threads-featured-data-*.js`），給 Threadfolio 當資料來源；「完整備份」保留發文時間、失效狀態等全部欄位（`threads-full-data-*.js`），用於備份與還原。 |
 
 ---
 
@@ -111,18 +112,15 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 
 ### 雙專案協同運作流程
 
-```
-[在 Threads 瀏覽貼文] ──> [Threadkeep (擴充功能)]
-                                    │
-                                    ▼ (點擊「匯出精選資料」)
-                    [產出 threads-featured-data-*.js]
-                                    │
-                                    ▼ (作為資料來源引用)
-                      [Threadfolio 精選貼文網站]
+```mermaid
+flowchart LR
+    A["在 Threads 瀏覽貼文"] -->|"取得內嵌程式碼"| B["Threadkeep 擴充功能"]
+    B -->|"匯出「精選格式」"| C["threads-featured-data-*.js"]
+    C -->|"作為資料來源"| D["Threadfolio 精選貼文網站"]
 ```
 
 1. 在 Threads 看到想留下的貼文時，從貼文選單點「取得內嵌程式碼」，**Threadkeep** 就會把它存進瀏覽器。
-2. 於控制面板中點擊「**匯出精選資料**」，擴充功能會自動去除作者帳號 `@` 前綴並格式化為前端配置物件。
+2. 在控制面板側欄「資料」的「匯出」選單選「**精選格式**」，擴充功能會自動去除作者帳號 `@` 前綴並格式化為前端配置物件。
 3. 將匯出的檔案直接提供給 **[Threadfolio](https://scorpio-meow.github.io/Threadfolio-Example/)** 作為資料來源，即刻完成個人精選貼文網站的更新與展示。
 
 ---
@@ -132,8 +130,8 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 ### 前置條件與環境需求
 
 - 支援 Manifest V3 的 Chromium 核心瀏覽器：
-  - Google Chrome (版本 88 以上)
-  - Microsoft Edge (版本 88 以上)
+  - Google Chrome (版本 123 以上，`manifest.json` 的 `minimum_chrome_version`；介面配色使用 CSS `light-dark()`)
+  - Microsoft Edge (版本 123 以上)
   - Brave Browser
   - Opera / Opera GX
   - Arc Browser
@@ -156,16 +154,10 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 
 ### 基本操作流程
 
-```
-[瀏覽 Threads 貼文] ──> [點擊「...」選單] ──> [選擇「取得內嵌程式碼」]
-                                                    │
-                                                    ▼
-[資料自動提取並儲存] <── [儲存成功通知浮現] <── [自動攔截嵌入對話框]
-        │
-        ├──> [點擊工具列圖示] ────> 開啟 Popup 彈出面板 (快速檢索 / 排序 / 篩選 / 匯出)
-        │
-        └──> [點擊「控制面板」] ──> 開啟全螢幕 Dashboard (即時預覽 / 批次管理 / 標籤雲)
-```
+1. 在 Threads 貼文右上角點「⋯」，選「取得內嵌程式碼」。
+2. 擴充功能攔截內嵌對話框，擷取內嵌碼、內文、作者、發文時間與標籤並存進瀏覽器，頁面右上角出現「內嵌程式碼已儲存」通知。
+3. 點瀏覽器工具列的 Threadkeep 圖示開啟 Popup，可以搜尋、篩選、排序、複製或刪除貼文，並從「更多」選單匯出或匯入。
+4. 需要完整管理時，在 Popup 點「開啟控制面板」：以瀑布流卡片瀏覽、用側欄分類與標籤雲篩選、在預覽抽屜檢視官方內嵌卡片，或勾選多篇做批次處理。
 
 ---
 
@@ -197,19 +189,20 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 | **貼文狀態** | `'active' \| 'expired'` | 標記貼文為正常存取中或已失效 |
 
 ### 4. 控制面板即時預覽 (Live Preview)
+- **點了才滑出的預覽抽屜**：平常不佔版面；點卡片上的作者名稱或卡片空白處（拖曳選取文字時不觸發），抽屜從右側滑出、背景變暗。抽屜是對話框（`role="dialog"`、`aria-modal="true"`），開啟時焦點移到關閉鈕並鎖在抽屜內；標題列顯示作者與「第 N / M 篇」。
 - **雙分頁即時渲染**：
-  - **原生內嵌預覽 (Official Embed)**：遵循 Chrome Manifest V3 與 Threads 官方嵌入規範，透過安全 Frame 直接載入官方即時卡片，呈現完整的互動按鈕與動態樣式。
-  - **原始碼與中繼資料 (Embed Code & Metadata)**：直接檢視乾淨的 `<blockquote>` 代碼與貼文中繼屬性對照表格。
-- **官方標準寬度與高度自適應**：預覽寬度固定為 Threads 官方標準的 658px；高度由注入至 iframe 的 Content Script 量測 `.Embed` 容器後回報，長短貼文皆精準貼合，不留多餘空白或捲軸。
+  - **內嵌預覽 (Official Embed)**：遵循 Chrome Manifest V3 與 Threads 官方嵌入規範，透過安全 Frame 直接載入官方即時卡片，呈現完整的互動按鈕與動態樣式。
+  - **原始碼與中繼資料 (Embed Code & Metadata)**：檢視完整內文、乾淨的 `<blockquote>` 代碼與貼文中繼屬性對照表格。
+- **寬度與高度自適應**：抽屜最寬 560px（窄螢幕時等於視窗寬），內嵌卡片隨抽屜寬度縮放；高度由注入至 iframe 的 Content Script 量測 `.Embed` 容器後回報，長短貼文皆精準貼合，不留多餘空白或捲軸。
 - **實際載入狀態回饋**：區分「載入中」、「載入逾時（10 秒）」與「載入失敗」三種狀態，逾時或失敗時顯示錯誤說明與「重新載入」按鈕；若該貼文沒有可用連結，則直接提示改看「原始碼與中繼資料」分頁。Threads 不提供內嵌的貼文（`/embed` 回 HTTP 500）會顯示中文說明，不會出現 Meta 的英文錯誤頁。
 - **帶著登入狀態預覽**：預覽從 `www.threads.com` 載入，會沿用瀏覽器的 Threads 登入狀態；只開放登入者觀看的貼文（例如被列為敏感內容），登入 Threads 後也能預覽。這類貼文的內嵌碼放到網站上時，只有已登入 Threads、且瀏覽器允許第三方 Cookie 的訪客看得到。
-- **全方位快捷鍵與導覽**：支援鍵盤 `ESC` 關閉、左/右方向鍵無縫切換上一篇/下一篇貼文、一鍵複製內嵌碼及直接開啟原文。
+- **全方位快捷鍵與導覽**：支援鍵盤 `ESC`、點背景或關閉鈕關閉，左/右方向鍵切換上一篇/下一篇貼文（背後對應的卡片會捲到可見範圍並加上外框），一鍵複製內嵌碼及直接開啟原文；關閉後焦點回到正在預覽的那張卡片。載入中顯示吉祥物動畫。
 
 ### 5. 背景循序同步與失效監控佇列
 - **循序非同步更新**：點擊「更新貼文資料」時，系統會依照當前篩選與排序後的結果建立佇列（若已勾選貼文，則僅更新目前篩選結果中被勾選的項目；勾選後又被篩掉的貼文不會更新），並重複使用**同一個背景工作分頁**循序載入，有效避免多開分頁導致的系統卡頓或平台流量限制。
 - **寬鬆的安全上限**：每篇的分頁載入與頁面解析合計最多等 60 秒，超過只記為「失敗」、不標記失效，網路較慢的正常貼文不會被誤判；注入腳本以 `MutationObserver` 在頁面渲染時立即檢查（兩次檢查至少間隔 80ms），不受背景分頁的計時器節流影響。
-- **分批寫回**：每處理 20 篇、按下暫停或佇列結束時才寫回一次，而且只寫這幾篇各自的紀錄：先讀取它們目前的內容，只覆蓋發文時間、內文、標籤與失效狀態等欄位，期間被刪除的貼文不會被寫回來，在 Threads 新存的貼文也不受影響。進行中只重繪該篇卡片與統計數字，佇列結束後才更新清單篩選與統計雲。
-- **進度與中斷控制**：即時顯示「更新中 (X/Y)」進度條與百分比動畫，並提供「**暫停 / 繼續**」與「**取消**」功能按鈕。
+- **分批寫回**：每處理 20 篇、按下暫停或佇列結束時才寫回一次，而且只寫這幾篇各自的紀錄：先讀取它們目前的內容，只覆蓋發文時間、內文、標籤與失效狀態等欄位，期間被刪除的貼文不會被寫回來，在 Threads 新存的貼文也不受影響。進行中只重繪該篇卡片與分類篇數，佇列結束後才更新清單篩選與標籤雲、作者雲。
+- **進度與中斷控制**：側欄「資料」下方即時顯示「更新中 (X/Y)」與進度條，右上角頂欄也會顯示「更新中 X/Y」；提供「**暫停 / 繼續**」與「**停止**」按鈕，暫停時進度條轉為琥珀色。
 - **智慧失效標記與自動恢復**：
   - 若貼文被刪除、轉為私密或發生轉導（`redirected`），系統將自動標記為 `expired` 並記錄原因。
   - 若頁面文字或標題出現不存在或已移除的訊息（例如「此頁面無法使用」「此串文已被移除」「Page Not Found」），將記錄為 `post-not-found`；只是找不到貼文元素時會等到 60 秒上限後記為失敗，不標記失效。
@@ -217,36 +210,39 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 - **內嵌可用性檢查**：每篇在背景分頁裡以同源、不帶 Cookie 的請求打一次 `/embed`，結果寫入 `embeddable` 與 `embeddableCheckedAt`。回 HTTP 500（例如只開放登入者觀看的貼文）記為 `false`，回 200 且含 `.Embed` 記為 `true`；逾時、限流或其他回應不寫入，保留上次的結論。必須在 threads.com 的分頁裡檢查，因為擴充功能頁面跨站請求 `/embed` 只會拿到 Threads 的一般頁面殼。在 Threads 儲存新貼文時，`content.js` 也會在背景檢查一次。
 
 ### 6. 雙檢視介面與全方位批次操作
-- **Popup 快速面板**：提供即時搜尋、多維度排序、類型篩選、單篇刪除、複製內嵌代碼、資料匯出與匯入功能。
-- **Dashboard 全頁儀表板**：全螢幕響應式佈局，具備多欄位卡片展示、統計數據看板、批次操作功能與完整預覽。
-- **分批渲染長清單**：清單一次只建立 60 張卡片（Popup 為 30 張），捲到接近底部或按「顯示更多」才載入下一批；卡片上的按鈕事件統一由清單容器委派，Dashboard 卡片另以 `content-visibility: auto` 略過畫面外的排版。
-- **跨介面同步**：Popup 與 Dashboard 監聽 `chrome.storage.onChanged`，在 Threads 新存或在另一個介面刪除的貼文會即時反映到清單。事件只帶來有變動的那幾篇；內容和畫面上相同的變動（例如自己寫入引起的事件）會略過，不重複重繪。
+- **Popup 快速面板**（480×600px）：頁首右側是「開啟控制面板」與「更多」，「更多」選單收納三種匯出（各附一行說明）、匯入與清除全部；下方是搜尋、篩選與排序，以及單欄貼文卡片（內文最多 3 行，按鈕依序為在 Threads 查看原文、複製內嵌碼、刪除）。
+- **控制面板**：全螢幕桌面工作區。左側欄由上而下是歡迎卡片、2×2 分類格、標籤雲、作者雲與資料按鈕格；中間是瀑布流卡片，依視窗寬度自動分欄（每欄至少 280px，窄螢幕一欄），卡片高度隨內文長短排列、不留空隙；預覽是點了才出現的右側抽屜。
+- **瀑布流排版**：瀏覽器還沒有原生的 CSS 瀑布流，所以清單是 4px 列高的 CSS Grid，由 `ResizeObserver` 依每張卡片的實際高度設定 `grid-row-end: span N`；展開全文或視窗變寬時卡片會自動重排。DOM 與鍵盤順序仍照排序由左到右，不會像 `columns` 那樣先跑完一欄。
+- **分批渲染長清單**：清單一次只建立 60 張卡片（Popup 為 30 張），捲到接近底部或按「顯示更多」才載入下一批；卡片上的按鈕事件統一由清單容器委派。
+- **跨介面同步**：Popup 與控制面板監聽 `chrome.storage.onChanged`，在 Threads 新存或在另一個介面刪除的貼文會即時反映到清單。事件只帶來有變動的那幾篇；內容和畫面上相同的變動（例如自己寫入引起的事件）會略過，不重複重繪。
 - **搜尋範圍**：比對內文、作者、標籤與貼文連結的路徑（`postLink` 去掉網域後的 `/@作者/post/貼文代碼`），可用帳號或貼文代碼找貼文。每篇的搜尋字串在第一次搜尋時建立並快取，排序也先算好每篇的比較值再排序。
-- **批次勾選管理**：Popup 與控制面板的「全選」都會勾選目前篩選結果的全部貼文，包含尚未載入的卡片，並支援半選（Indeterminate）狀態顯示；未勾選任何項目時，「更新貼文資料」、「批次複製 Embed 代碼」與「批次刪除」一律維持 `disabled`，滑鼠與鍵盤皆無法觸發。
+- **批次勾選管理**：Popup 與控制面板的「全選」都會勾選目前篩選結果的全部貼文，包含尚未載入的卡片，並支援半選（Indeterminate）狀態顯示；沒有結果時全選停用。控制面板勾選任何貼文後，列表頭會換成批次列：「更新資料」「複製內嵌碼」「刪除」與「取消選取」，沒有勾選時批次列不顯示；Popup 則顯示「已選取 N 篇」與「取消選取」。
 - **頁內確認 Modal**：破壞性操作（清除全部、覆寫匯入，以及控制面板的單篇與批次刪除）全面改用頁內 Modal 二次確認；Popup 沒有批次刪除，單篇刪除不另外確認，改以「復原」提示補救。兩個介面都完全不使用原生 `confirm()`、`alert()` 與 `prompt()`；這對 Popup 尤其關鍵——原生對話框會在 Popup 失焦時連同 Popup 一併關閉並回傳預設值。
 
 ### 7. 多維度分類篩選與彈性排序體系
-系統在 Popup 與 Dashboard 均提供 6 種篩選維度與 6 種排序規則：
+系統在 Popup 與控制面板均提供 6 種篩選維度與 6 種排序規則：
 
 - **6 種分類篩選模式**：
   - `全部貼文 (all)`: 顯示資料庫中所有貼文。
-  - `依作者 (author)`: 二級下拉選單動態列出所有作者，精確篩選特定發文者。
-  - `依標籤 (tag)`: 二級下拉選單動態列出所有標籤，精確篩選特定技術主題。
+  - `依作者 (author)`: 控制面板在側欄作者雲點選；Popup 以二級下拉選單列出所有作者。
+  - `依標籤 (tag)`: 控制面板在側欄標籤雲或卡片上的標籤點選；Popup 以二級下拉選單列出所有標籤。
   - `無內文 (noContent)`: 快速找出 `content` 為空的貼文（例如純圖片或未成功擷取內文者），便於集中維護。
   - `無發文時間 (noTimestamp)`: 篩選出未成功擷取官方發布時間或時間戳記與儲存時間異常之項目。
   - `失效貼文 (expired)`: 篩選出被原作者刪除、私密化或轉導的失效貼文。
-- **6 種排序規則**：
-  - `儲存時間: 新到舊 (savedAt-desc)` / `儲存時間: 舊到新 (savedAt-asc)`
-  - `發布時間: 新到舊 (timestamp-desc)` / `發布時間: 舊到新 (timestamp-asc)`
-  - `作者名稱: A-Z (author-asc)` / `作者名稱: Z-A (author-desc)`
+- **控制面板的分類格**：全部、失效、無內文、無發文時間做成側欄頂端的 2×2 分類格，直接顯示各自的篇數，有失效貼文時篇數變紅；選中的分類會成為列表標題（例如「失效貼文」「#台南」），旁邊顯示篇數。再點一次已選的標籤或作者即回到全部貼文。
+- **6 種排序規則**（控制面板／Popup 的顯示名稱）：
+  - `savedAt-desc`「儲存時間（新到舊）」／「最新儲存」、`savedAt-asc`「儲存時間（舊到新）」／「最早儲存」
+  - `timestamp-desc`「發文時間（新到舊）」／「最新發文」、`timestamp-asc`「發文時間（舊到新）」／「最早發文」
+  - `author-asc`「作者（A-Z）」／「作者 A–Z」、`author-desc`「作者（Z-A）」／「作者 Z–A」
+- **卡片時間跟著排序**：控制面板卡片右上角依目前排序顯示「儲存」或「發文」時間（依作者排序時顯示發文時間），滑鼠停留可看完整日期時間。
 
 ### 8. 互動式標籤與作者統計雲
-- **即時頻次計算**：自動統計所有貼文中的 Top 15 常用標籤與 Top 15 熱門作者。標籤不分大小寫合併計數（`React`、`react` 算同一個），以最常見的寫法顯示，篩選選單與「標籤總數」也依同樣規則合併。
-- **點擊即時篩選**：點擊標籤雲或作者雲中的任一徽章，即可快速切換儀表板清單的篩選條件；再次點擊即可取消篩選。
+- **即時頻次計算**：側欄的標籤雲與作者雲依篇數排序，預設顯示前 15 個，超過時最後有「全部 N 個標籤／位作者」可展開、「收合」收回；目前選中的項目即使不在前 15 名也會顯示。篇數越多字越粗（相對最多的一項達 60% 以上為粗體、30% 以上為中粗）。標籤不分大小寫合併計數（`React`、`react` 算同一個），以最常見的寫法顯示，Popup 的篩選選單與側欄的標籤總數也依同樣規則合併。
+- **點擊即時篩選**：點擊標籤雲或作者雲中的任一項，即可切換控制面板清單的篩選條件，選中的項目以墨黑底標示；再次點擊即可取消篩選。卡片上的標籤是香檳色小膠囊，點擊效果相同。
 
 ### 9. 智慧容錯匯入與多格式匯出
-- **三種專業匯出格式**：簡易版 JS 嵌入碼、精選貼文資料、完整版備份檔案。三者皆會在有勾選項目時**僅匯出勾選的貼文**，未勾選時則匯出目前的篩選結果。
-- **雙來源匯入**：Popup 可選擇「選擇檔案」讀取 `.js` / `.json` 備份，或以「貼上內容」直接貼上匯出檔文字；Dashboard 則透過檔案選擇器匯入。
+- **三種專業匯出格式**：僅內嵌碼（貼進網頁用的 `.js` 檔）、精選格式（Threadfolio 精選貼文用）、完整備份（含時間、作者與內文）。三者皆會在有勾選項目時**僅匯出勾選的貼文**，未勾選時則匯出目前的篩選結果。控制面板在側欄「資料」的「匯出」選單，選單標題會寫出這次的範圍（「匯出已選取的 3 篇」或「匯出目前列表的 11 篇」）；Popup 在頁首「更多」選單。
+- **雙來源匯入**：Popup 在「更多」選單點「匯入…」後可選擇「選擇檔案」讀取 `.js` / `.json` 備份，或以「貼上內容」直接貼上匯出檔文字；控制面板則在側欄「資料」點「匯入」以檔案選擇器匯入。
 - **雙模式智慧匯入**：
   - **合併資料 (Merge)**：以貼文代碼（儲存 key）比對，略過已存在的貼文，匯入檔內的重複項目也只保留一筆；新貼文依儲存時間（`savedAt`）排入清單。
   - **完全覆寫 (Overwrite)**：清空現有資料庫，以匯入檔案內容完全取代；此模式必須再通過一次「確認完全覆寫」對話框才會執行。
@@ -255,35 +251,54 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 ### 10. 無障礙設計與可復原操作
 - **完整 Modal 無障礙語意**：所有對話框均具備 `role="dialog"`、`aria-modal="true"` 與標題關聯，確認與匯入方式對話框另有描述關聯；開啟時自動聚焦、`Tab` 焦點鎖定於對話框內、`ESC` 可關閉，關閉後焦點自動回到觸發按鈕。
 - **可復原的刪除與清除**：單篇刪除、批次刪除與清除全部資料後，會顯示帶有「復原」按鈕的提示（預設 8 秒）；滑鼠移到提示上或鍵盤焦點停在「復原」按鈕時暫停倒數。同一時間僅保留一則復原提示，避免舊快照回捲較新的變更。
-- **即時語音回饋**：Popup、Dashboard 的 Toast 容器與注入 Threads 頁面的通知皆為 live region。Popup 與 Dashboard 的 Toast 一律為 `role="status"`（錯誤只改變外觀），Threads 頁面上的錯誤通知才改用 `role="alert"`。一般訊息至少顯示 4 秒、錯誤至少 6 秒，較長的訊息依字數延長（每字約 0.12 秒），滑鼠移到提示上時暫停倒數。
-- **清楚的焦點外框**：按鈕與連結的鍵盤焦點以 2px 實線外框標示（淺色 `#2563eb`、深色 `#60a5fa`），與周圍背景的對比至少 4.6:1；輸入框與下拉選單改用內圈 2px 實色（`#1d4ed8`／`#93c5fd`，對比至少 6.5:1）加外圈光暈的雙環，高對比模式下改回系統顏色外框。
-- **深色與高對比模式**：控制面板右上角的「外觀」選單可選跟隨系統、淺色或深色，設定存在 `chrome.storage.local`，Popup 與 Threads 頁面上的通知一併套用；顏色集中定義在 `:root` 的 CSS 變數；Windows 高對比模式（`forced-colors`）下，焦點外框、勾選框、選取狀態與進度條改用系統顏色標示。
-- **可操作的標籤與作者徽章**：統計雲徽章由 `span` 改為 `button` 並標註 `aria-pressed`，可用鍵盤聚焦並切換篩選狀態。
-- **螢幕閱讀器結構**：貼文卡片是清單項目、作者名稱是標題；卡片的勾選框與操作按鈕名稱帶上作者與發文時間（例如「刪除：user174 於 18 小時前發布的貼文」），相對時間另附完整日期時間。搜尋、篩選與勾選後會朗讀結果數量（「找到 5 篇貼文」「已選取 3 篇」）。
-- **焦點不遺失**：點徽章篩選、刪除、復原或背景更新重畫卡片後，焦點留在原控制項，或移到同一位置的下一篇、還原的那篇，不會跳回頁首。
-- **視覺與動態友善**：文字對比度提升至 4.5:1，偏小的按鈕點擊目標放大至 24×24px 以上（勾選框例外，見 [ACCESSIBILITY.md](./ACCESSIBILITY.md) 的已知限制），字級下限拉高到 12px；三份樣式表皆支援 `prefers-reduced-motion: reduce`，在系統要求減少動態時停用轉場動畫。
+- **即時語音回饋**：Popup、控制面板的 Toast 容器與注入 Threads 頁面的通知皆為 live region。Popup 與控制面板的 Toast 一律為 `role="status"`（錯誤只改變外觀），Threads 頁面上的錯誤通知才改用 `role="alert"`。一般訊息至少顯示 4 秒、錯誤至少 6 秒，較長的訊息依字數延長（每字約 0.12 秒），滑鼠移到提示上時暫停倒數。
+- **清楚的焦點外框**：按鈕、連結與輸入框的鍵盤焦點一律以 2px 實線外框標示，顏色是香檳金（淺色 `#83632a`、深色 `#d9bc7a`），與底色的對比至少 5:1；高對比模式下改回系統顏色外框。
+- **深色與高對比模式**：控制面板右上角「設定」選單的「外觀」可選跟隨系統、淺色或深色，設定存在 `chrome.storage.local`，Popup 與 Threads 頁面上的通知一併套用；顏色集中定義在 `ui.css` 的 `:root`，以 `light-dark()` 同時給出淺色與深色值，淺色與深色的文字對比都至少 4.5:1；Windows 高對比模式（`forced-colors`）下，焦點外框、勾選框、選取狀態與進度條改用系統顏色標示。
+- **可操作的分類、標籤與作者**：側欄分類格、標籤雲與作者雲的每一項都是 `button` 並標註 `aria-pressed`，可用鍵盤聚焦並切換篩選狀態；卡片上的標籤也是可切換的按鈕。
+- **螢幕閱讀器結構**：貼文卡片是清單項目、作者名稱是標題，標題裡的按鈕會開啟預覽；卡片的勾選框與操作按鈕名稱帶上作者與發文時間（例如「刪除：user174 於 18 小時前發布的貼文」），相對時間另附完整日期時間。搜尋、篩選與勾選後會朗讀結果數量（「找到 5 篇貼文」「已選取 3 篇」）。
+- **焦點不遺失**：點分類或標籤篩選、刪除、復原或背景更新重畫卡片後，焦點留在原控制項，或移到同一位置的下一篇、還原的那篇，不會跳回頁首；關閉預覽抽屜後焦點回到該卡片的作者名稱。
+- **視覺與動態友善**：字級只用 12、14、16、20px，下限 12px；偏小的按鈕點擊目標放大至 24×24px 以上（勾選框例外，見 [ACCESSIBILITY.md](./ACCESSIBILITY.md) 的已知限制）。所有樣式表都支援 `prefers-reduced-motion: reduce`：系統要求減少動態時停用轉場、卡片淡入、背景流動與游標光斑。
+- **聲音只是輔助**：每個音效對應的結果都有畫面上的提示或狀態變化，也會由 live region 朗讀，關掉音效不會漏掉資訊；音效與背景音樂都能在「設定」關閉，背景音樂預設關閉、不會自動響起。
 - **輸入防抖**：兩個介面的搜尋框皆加入 180ms debounce，資料量大時輸入不再卡頓。
 
 > [!NOTE]
 > 無障礙目標、已知限制（例如即時預覽的卡片由 Meta 決定）與障礙回報方式，請見 [ACCESSIBILITY.md](./ACCESSIBILITY.md)。
 
+### 11. 音效、背景音樂與視覺質感
+- **六種短音效**：豎琴與鋼琴，全部是 D 大調，連續操作時彼此和諧。
+
+  | 時機 | 檔案 | 聲音 | 長度 |
+  | :--- | :--- | :--- | :--- |
+  | 在 Threads 儲存或更新貼文 | `sounds/save.ogg` | 豎琴 D–F♯–A–D 上行琶音 | 0.74 秒 |
+  | 複製內嵌碼（單篇、批次、預覽抽屜） | `sounds/copy.ogg` | 鋼琴 A 八度輕點 | 0.32 秒 |
+  | 刪除、批次刪除、清除全部（確認後） | `sounds/delete.ogg` | 豎琴 A→D 下行 | 0.42 秒 |
+  | 按「復原」還原成功 | `sounds/undo.ogg` | 豎琴 D→A 上行 | 0.36 秒 |
+  | 匯入、匯出成功，批次更新貼文資料完成 | `sounds/complete.ogg` | 豎琴 Dadd9 琶音接鋼琴和弦，尾端極輕的指鈸 | 1.12 秒 |
+  | 顯示錯誤提示、Threads 頁面儲存失敗 | `sounds/error.ogg` | 鋼琴低音 E→D♯ 小二度 | 0.42 秒 |
+
+  使用者取消操作、批次更新被停止或寫回失敗時不播完成音效。音效預設開啟，可在控制面板右上角「設定」關閉，Popup 與 Threads 頁面共用同一個設定（`soundEffects`）；開啟時會先播一次儲存音效試聽。
+- **背景音樂**：`sounds/background-music.ogg`，2 分鐘可無縫循環的新古典鋼琴與弦樂（D 大調、64 BPM、32 小節：鋼琴主題、弦樂加入、主題高八度變奏加豎琴、收束後接回開頭）。只在控制面板播放，預設關閉（`backgroundMusic`）；開啟時 1.8 秒淡入，切到別的分頁會停止、回來再從頭淡入；瀏覽器尚未允許自動播放時，會在第一次點擊或按鍵後開始。
+- **播放方式**：`sound.js` 以 Web Audio API 解碼並播放，每個檔案只下載與解碼一次；循環用 `AudioBufferSourceNode.loop`，接縫無間隙。Threads 頁面的 content script 只會取用 `save.ogg` 與 `error.ogg`，`manifest.json` 只對 Threads 網域開放這兩個檔案（`web_accessible_resources`）。
+- **音源來源與授權**：由小寶樂隊（XSXB-Band）本機編曲工作室以 CC0 授權的實錄採樣（立式鋼琴、豎琴、小提琴組、大提琴組、指鈸）編曲並渲染，再轉成 48kHz Ogg Opus（音效單聲道約 56 kbps、配樂立體聲約 96 kbps）；沒有使用音樂生成模型。
+- **視覺系統**：象牙白、墨黑、香檳金。主要按鈕、勾選框、開關與選中的分類用墨黑，選中的卡片、焦點外框、分頁底線、進度條與重點數字用香檳金，紅色只留給刪除、清除全部與失效標記；線條是 0.5px 髮絲線，圓角只用在按鈕、欄位（6px）與卡片、浮層（10px）。內文字型是 Geist 與 Noto Sans TC，程式碼是 Geist Mono，品牌名、標題與分類數字是 Playfair Display 與 Noto Serif TC（數字設為等高）。
+- **動態質感**：背景有緩慢流動的香檳金柔光（約 28 秒一個來回）；游標移動時有一圈柔光跟著走，滑過貼文卡片時卡片內也會亮起局部高光，卡片微微浮起；切換分類或搜尋時卡片依序淡入。光層在文字與卡片底下，不影響文字對比也不擋點擊，觸控操作不會觸發；系統要求減少動態時全部關閉。
+- **歡迎卡片**：控制面板側欄頂端依時段顯示「早安、午安、晚安、夜深了」，以及收藏總數與最近 7 天新增的篇數。
+
 ---
 
 ## 技術規格與技術棧
 
-```
-+-----------------------------------------------------------------------+
-|                             技術架構標準                              |
-+-----------------------------------------------------------------------+
-|  規範標準    | Chrome Extensions Manifest V3                          |
-|  核心語言    | 原生 JavaScript (ES6+), HTML5, CSS3 Variables          |
-|  依賴套件    | 無 npm 套件 (介面字型由 Google Fonts 載入)             |
-|  資料儲存    | 瀏覽器本機儲存 (chrome.storage.local，以 unlimitedStorage 解除 10MB 配額)   |
-|  安全規範    | 符合嚴格 CSP (Content Security Policy)，無行內事件與樣式 |
-|  相容平台    | Google Chrome, Microsoft Edge, Brave, Opera, Arc 等    |
-|  建置流程    | 零編譯步驟 (Zero-build step, 開箱即用)                |
-+-----------------------------------------------------------------------+
-```
+| 項目 | 內容 |
+| :--- | :--- |
+| 規範標準 | Chrome Extensions Manifest V3 |
+| 核心語言 | 原生 JavaScript (ES6+)、HTML5、CSS 自訂屬性 |
+| 依賴套件 | 無 npm 套件；介面字型由 Google Fonts 載入 |
+| 介面樣式 | CSS `light-dark()` 色彩變數、Popover API、以 CSS Grid 實作的瀑布流 |
+| 音訊播放 | Web Audio API（`AudioContext`），音檔為 Ogg Opus |
+| 資料儲存 | 瀏覽器本機的 `chrome.storage.local`，以 `unlimitedStorage` 解除 10MB 配額 |
+| 安全規範 | 嚴格 CSP（Content Security Policy），沒有行內事件處理器 |
+| 相容平台 | Chrome、Edge 123 以上，以及 Brave、Opera、Arc 等 Chromium 瀏覽器 |
+| 建置流程 | 零編譯步驟，直接載入資料夾即可使用 |
 
 ---
 
@@ -296,16 +311,20 @@ Threadkeep/
 ├── manifest.json         # 擴充功能設定檔 (Manifest V3 權限與腳本規則)
 ├── article-store.js      # 共用儲存層 (每篇一個 key、舊資料搬移、跨介面同步、標籤合併)
 ├── theme.js              # 外觀設定 (跟隨系統／淺色／深色，Popup 與控制面板共用)
+├── ui.css                # 共用設計系統 (色彩與字型變數、按鈕、欄位、勾選框、開關、選單、對話框、提示、標籤、背景光)
+├── ui.js                 # 共用介面行為 (Popover 選單定位、游標光斑追蹤)
+├── sound.js              # 音效與背景音樂播放 (Web Audio、偏好設定、分頁切換時停播)
+├── sounds/               # 音效與背景音樂 (Ogg Opus：save、copy、delete、undo、complete、error、background-music)
 ├── content.js            # Content Script (DOM 監聽、對話框攔截、文本清洗、資料提取)
 ├── styles.css            # 注入至 Threads 網頁的通知提示樣式
 ├── popup.html            # 瀏覽器工具列彈出視窗 HTML
-├── popup.css             # 彈出視窗樣式表 (淺色／深色主題、響應式清單)
-├── popup.js              # 彈出視窗控制邏輯 (搜尋、排序、篩選、頁內 Modal、匯出、匯入)
-├── dashboard.html        # 完整管理儀表板 HTML (包含即時預覽彈窗、統計看板、批次工具列)
-├── dashboard.css         # 儀表板樣式表 (Grid 排版、預覽彈窗、動畫轉場、動態降級)
-├── dashboard.js          # 儀表板控制邏輯 (統計雲、預覽控制器、循序佇列、批次處理、復原機制)
+├── popup.css             # 彈出視窗版面 (頁首、工具列、單欄卡片)
+├── popup.js              # 彈出視窗控制邏輯 (搜尋、排序、篩選、更多選單、頁內 Modal、匯出、匯入)
+├── dashboard.html        # 控制面板 HTML (側欄、瀑布流清單、預覽抽屜、設定與匯出選單)
+├── dashboard.css         # 控制面板版面 (側欄分類格與標籤雲、瀑布流卡片、預覽抽屜、響應式)
+├── dashboard.js          # 控制面板控制邏輯 (篩選導覽、瀑布流排版、預覽抽屜、循序佇列、批次處理、復原機制)
 ├── icons/                # 擴充功能圖示 (16、32、48、128 px)
-├── images/               # 空狀態用的吉祥物圖 (mascot-320.webp)
+├── images/               # 吉祥物圖 (mascot-320.webp，空狀態、歡迎卡片與預覽載入中)
 ├── docs/                 # GitHub Pages 介紹頁 (index.html、互動清洗示範、介面截圖與 assets/video/ 操作示範影片)
 ├── llms.txt              # AI 友善架構與 RAG 快速索引規範文件
 ├── README.md             # 專案說明文件 (本檔案)
@@ -322,13 +341,17 @@ Threadkeep/
 
 | 檔案路徑 | 模組層級 | 主要職責與實作內容 |
 | :--- | :--- | :--- |
-| `manifest.json` | 設定層 | 聲明 Manifest V3 規格、儲存與分頁權限、主機比對規則與 CSP 配置。 |
-| `article-store.js` | 儲存層 | 由 content script、Popup 與 Dashboard 共用：決定每篇貼文的儲存 key、搬移舊版 `savedArticles` 陣列、逐篇讀寫與刪除、合併批次更新欄位、把 `chrome.storage.onChanged` 的逐篇變動套用到清單，以及不分大小寫合併標籤統計（`getTagGroups`）。另外存放外觀設定的儲存 key（`THEME_PREFERENCE_KEY`），以及內嵌可用性檢查的共用函式（`getThreadsEmbedPath`、`checkEmbeddable`、`applyEmbeddableResult`、`pickEmbeddableFields`）。 |
-| `theme.js` | 外觀層 | 由 Popup 與控制面板在 `<head>` 載入：先以 `localStorage` 的快取立即套用 `data-theme`，避免載入時閃爍，再讀取 `chrome.storage.local` 的 `themePreference` 並同步各頁面；控制面板的「外觀」選單也由它處理。 |
-| `content.js` | 注入腳本層 | 負責監聽 Threads DOM 變化、攔截內嵌對話框、頂層排版提取與正規表達式文本清洗，並在 Threads 頁面顯示儲存結果通知、儲存後於背景檢查內嵌可用性；在預覽用的 `/embed` iframe 裡則改為回報卡片高度與載入錯誤給控制面板。 |
-| `styles.css` | 注入樣式層 | 定義顯示於 Threads 頁面之儲存成功/失敗浮動通知外觀、進場動畫、`prefers-reduced-motion` 降級，以及深色與高對比模式樣式。 |
-| `popup.html` / `popup.js` | 快速檢視層 | 提供 480px 寬度的工具列快速面板，支援即時關鍵字查詢、6 種分類、6 種排序、單篇維護、頁內確認／匯入 Modal 與基本匯出。 |
-| `dashboard.html` / `dashboard.js` | 完整管理層 | 全螢幕資料庫中心，提供 Live Preview 即時預覽、批次管理、標籤/作者統計雲、背景更新佇列與可復原的刪除操作。 |
+| `manifest.json` | 設定層 | 聲明 Manifest V3 規格、最低 Chrome 版本（123）、儲存與分頁權限、主機比對規則、CSP 配置，以及只對 Threads 網域開放的兩個音效檔。 |
+| `article-store.js` | 儲存層 | 由 content script、Popup 與控制面板共用：決定每篇貼文的儲存 key、搬移舊版 `savedArticles` 陣列、逐篇讀寫與刪除、合併批次更新欄位、把 `chrome.storage.onChanged` 的逐篇變動套用到清單，以及不分大小寫合併標籤統計（`getTagGroups`）。另外存放外觀與聲音設定的儲存 key（`THEME_PREFERENCE_KEY`、`SOUND_EFFECTS_KEY`、`BACKGROUND_MUSIC_KEY`），以及內嵌可用性檢查的共用函式（`getThreadsEmbedPath`、`checkEmbeddable`、`applyEmbeddableResult`、`pickEmbeddableFields`）。 |
+| `theme.js` | 外觀層 | 由 Popup 與控制面板在 `<head>` 載入：先以 `localStorage` 的快取立即套用 `data-theme`，避免載入時閃爍，再讀取 `chrome.storage.local` 的 `themePreference` 並同步各頁面；控制面板「設定」選單裡的「外觀」也由它處理。 |
+| `ui.css` | 設計系統層 | Popup 與控制面板共用：以 `light-dark()` 定義的色彩、字型、字級、圓角與動態變數，按鈕、欄位、勾選框、開關、Popover 選單、對話框、提示、標籤與空狀態等元件，背景流動光與游標光斑，以及減少動態與高對比模式的降級。 |
+| `ui.js` | 共用介面行為 | `setupMenus` 依觸發按鈕位置擺放 Popover 選單（下方放不下就翻到上方）、點選項目後關閉、視窗縮放時收合；`setupAmbientLight` 以 `requestAnimationFrame` 節流追蹤游標，更新背景光斑與滑過卡片的局部高光位置。 |
+| `sound.js` | 聲音層 | 由 Popup、控制面板與 content script 共用：讀取 `soundEffects`／`backgroundMusic` 設定並跟著 `chrome.storage.onChanged` 同步，以 Web Audio API 解碼與播放 `sounds/` 裡的音檔（`playSound`），控制面板的背景音樂開關、淡入淡出與分頁切換時停播（`setupBackgroundMusic`、`setupSoundSwitches`）。 |
+| `sounds/` | 音訊資源層 | 六個短音效與一段 2 分鐘背景音樂（Ogg Opus），由小寶樂隊本機工作室以 CC0 採樣編曲渲染。 |
+| `content.js` | 注入腳本層 | 負責監聽 Threads DOM 變化、攔截內嵌對話框、頂層排版提取與正規表達式文本清洗，並在 Threads 頁面顯示儲存結果通知與播放儲存／錯誤音效、儲存後於背景檢查內嵌可用性；在預覽用的 `/embed` iframe 裡則改為回報卡片高度與載入錯誤給控制面板。 |
+| `styles.css` | 注入樣式層 | 定義顯示於 Threads 頁面之儲存成功/失敗浮動通知外觀（墨黑底加香檳金細框）、進場動畫、`prefers-reduced-motion` 降級，以及深色與高對比模式樣式。 |
+| `popup.html` / `popup.js` | 快速檢視層 | 提供 480×600px 的工具列快速面板，支援即時關鍵字查詢、6 種分類、6 種排序、單篇維護、「更多」選單匯出匯入、頁內確認／匯入 Modal 與音效。 |
+| `dashboard.html` / `dashboard.js` | 完整管理層 | 全螢幕控制面板，提供側欄分類格與標籤／作者雲、瀑布流卡片、預覽抽屜、批次管理、背景更新佇列、可復原的刪除操作、設定選單與背景音樂。 |
 | `llms.txt` | 規範說明層 | 提供 AI 代理與 RAG 檢索系統快速索引之結構化摘要說明文件。 |
 | `README.md` | 完整文檔層 | 專案主要說明文件，包含完整系統架構、演算法剖析、資料 Schema 與常見問題。 |
 | `CHANGELOG.md` | 完整文檔層 | 各版本的新增、改善、修正與移除項目，格式遵循 Keep a Changelog。 |
@@ -355,17 +378,17 @@ flowchart TD
         G -->|"safeStorageSet (防例外寫入)"| H[("chrome.storage.local\n[post:貼文代碼] 每篇一筆")]
     end
 
-    subgraph PopupView["Popup 彈出面板 (480px)"]
+    subgraph PopupView["Popup 彈出面板 (480×600px)"]
         H -->|"loadArticleRecords (讀取)"| I["popup.js 渲染引擎"]
         I --> J["全文搜尋 / 6種排序 / 6種篩選"]
-        I --> K["單筆維護 / 快速匯出"]
+        I --> K["單篇卡片維護 / 「更多」選單匯出匯入"]
     end
 
-    subgraph DashboardView["Dashboard 全頁控制面板"]
+    subgraph DashboardView["控制面板"]
         H -->|"loadArticleRecords (讀取)"| L["dashboard.js 核心引擎"]
-        L --> M["標籤雲 / 作者雲統計看板"]
-        L --> N["卡片清單與批次管理工具列"]
-        L --> O["即時預覽彈窗 (Live Preview Modal)"]
+        L --> M["側欄：分類格 / 標籤雲 / 作者雲 / 資料按鈕"]
+        L --> N["瀑布流卡片清單與批次列"]
+        L --> O["預覽抽屜 (Live Preview Drawer)"]
         O --> P["官方 Frame 預覽 / 原始碼中繼資料雙分頁"]
     end
 
@@ -386,7 +409,7 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    participant UI as Dashboard 控制面板
+    participant UI as 控制面板 (dashboard.js)
     participant Queue as 更新佇列控制器
     participant Tab as 背景靜默分頁 (chrome.tabs)
     participant Page as Threads 貼文伺服器
@@ -421,15 +444,15 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant User as 使用者操作
-    participant Modal as 預覽彈窗控制器 (dashboard.js)
-    participant Iframe as 安全預覽框架 (iframe, 寬度固定 658px)
+    participant Modal as 預覽抽屜控制器 (dashboard.js)
+    participant Iframe as 安全預覽框架 (iframe, 最寬 560px)
     participant Content as iframe 內的 content.js (all_frames)
     participant ThreadsEmbed as Threads 原生內嵌伺服器
 
-    User->>Modal: 點擊卡片「即時預覽」或按方向鍵
+    User->>Modal: 點作者名稱或卡片空白處，或在抽屜裡按方向鍵
     Modal->>Modal: 解析貼文 postLink 產生標準 Embed URL
     Modal->>Iframe: 設定 iframe.src = https://www.threads.com/.../embed
-    Modal->>Modal: 顯示載入動畫 (Spinner) 並啟動 10 秒逾時計時器
+    Modal->>Modal: 顯示吉祥物載入動畫並啟動 10 秒逾時計時器
     Iframe->>ThreadsEmbed: 載入原生卡片資源
     ThreadsEmbed-->>Iframe: 渲染互動卡片
     Content->>Content: ResizeObserver / MutationObserver 量測 .Embed 容器高度
@@ -437,7 +460,7 @@ sequenceDiagram
     Modal->>Modal: 驗證 origin (threads.net / threads.com / instagram.com)
     Modal->>Iframe: 動態調整 iframe.style.height = targetHeight (100~5000px)
     alt 載入完成
-        Modal->>Modal: 清除計時器，隱藏 Spinner，呈現完美貼合之原生預覽
+        Modal->>Modal: 清除計時器，隱藏載入動畫，呈現完美貼合之原生預覽
     else Threads 不提供內嵌（HTTP 500）
         Content->>Modal: window.postMessage ({ type: 'THREADS_EMBED_ERROR' })
         Modal->>User: 顯示中文說明，隱藏 Meta 錯誤頁
@@ -604,7 +627,7 @@ for (const article of articlesNeedingUpdate) {
   if (pendingArticles.size >= UPDATE_PERSIST_BATCH_SIZE) await flushPendingUpdates(); // 每 20 篇合併寫回
   refreshRenderedCard(article);                                    // 只重繪這一張卡片
 }
-// finally：關閉工作分頁、寫回剩餘的更新，再整體重繪清單與統計雲
+// finally：關閉工作分頁、寫回剩餘的更新，再整體重繪清單與標籤雲、作者雲
 ```
 
 - **分批合併寫回**：`flushPendingUpdates` 呼叫 `mergeArticleUpdates`，只讀取這批貼文各自的 key，把 `ARTICLE_UPDATE_FIELDS`（`timestamp`、`timestampTitle`、`content`、`tags`、失效狀態、`timestampUpdatedAt`、`embeddable`、`embeddableCheckedAt`）以記憶體中的值套到目前儲存的紀錄上再寫回，記憶體中沒有的欄位會從紀錄刪除；已不存在的 key 代表貼文在佇列期間被刪除，會直接略過。中途關閉頁面最多遺失最後未寫回的 19 篇更新結果，重新執行即可補上。
@@ -619,11 +642,11 @@ Threads 官方 `/embed` 頁面只會對父視窗送出一個不帶型別的數�
 window.parent.postMessage({ type: 'THREADS_EMBED_RESIZE', height: h }, parentOrigin);
 ```
 
-Threads 不提供內嵌的貼文（已刪除、不公開，或只開放登入的使用者觀看，例如被列為敏感內容），`/embed` 會回 HTTP 500 與 Meta 的錯誤頁；這類貼文的內嵌碼放到網站上，未登入 Threads 或封鎖第三方 Cookie 的訪客同樣顯示不出來。預覽從 `www.threads.com` 載入，會帶著瀏覽器的 Threads 登入狀態，所以只開放登入者觀看的貼文在已登入時可以正常預覽。iframe 一樣會觸發 `load`，所以 `content.js` 在 `/embed` 頁找不到 `.Embed` 容器時改送 `{ type: 'THREADS_EMBED_ERROR' }`。儀表板確認訊息來自目前的預覽 iframe 後，顯示自己的錯誤提示並隱藏錯誤頁，之後的 `load` 事件也不會再把狀態改回「已載入」。
+Threads 不提供內嵌的貼文（已刪除、不公開，或只開放登入的使用者觀看，例如被列為敏感內容），`/embed` 會回 HTTP 500 與 Meta 的錯誤頁；這類貼文的內嵌碼放到網站上，未登入 Threads 或封鎖第三方 Cookie 的訪客同樣顯示不出來。預覽從 `www.threads.com` 載入，會帶著瀏覽器的 Threads 登入狀態，所以只開放登入者觀看的貼文在已登入時可以正常預覽。iframe 一樣會觸發 `load`，所以 `content.js` 在 `/embed` 頁找不到 `.Embed` 容器時改送 `{ type: 'THREADS_EMBED_ERROR' }`。控制面板確認訊息來自目前的預覽 iframe 後，顯示自己的錯誤提示並隱藏錯誤頁，之後的 `load` 事件也不會再把狀態改回「已載入」。
 
 `content.js` 會注入所有 threads.com 框架，包括其他網站嵌入的 Threads iframe，但只有在直接父視窗是本擴充功能的頁面時才送訊息：以 `location.ancestorOrigins[0]` 的 host 比對 `chrome.runtime.id`，相符才送出，而且 `postMessage` 只指定該來源，不用 `'*'`。其他網站嵌入的 Threads iframe 不會收到 `THREADS_EMBED_RESIZE` 或 `THREADS_EMBED_ERROR`，也就看不出瀏覽器裝了本擴充功能。
 
-儀表板端先驗證來源網域；`THREADS_EMBED_ERROR` 只在 `event.source` 是目前的預覽 iframe 時才處理。高度依序取 `THREADS_EMBED_RESIZE` 的 `height`、官方 `MEASURE` 等格式的 `details.height`（字串會先解析成 JSON），再退回 `height` 或 `scrollHeight`，只套用 100–5000px 之間的值：
+控制面板端先驗證來源網域；`THREADS_EMBED_ERROR` 只在 `event.source` 是目前的預覽 iframe 時才處理。高度依序取 `THREADS_EMBED_RESIZE` 的 `height`、官方 `MEASURE` 等格式的 `details.height`（字串會先解析成 JSON），再退回 `height` 或 `scrollHeight`，只套用 100–5000px 之間的值：
 
 ```javascript
 function isAllowedEmbedOrigin(origin) {
@@ -748,6 +771,7 @@ interface SavedArticle {
 - **儲存配額**：Chromium `chrome.storage.local` 預設配額為 **10MB**，每篇貼文含官方內嵌碼約 3–4 KB，約兩、三千篇就會用完。本擴充功能宣告 `unlimitedStorage` 權限解除這個上限，實際容量取決於磁碟空間。
 - **逐篇寫入**：在 Threads 存一篇只寫入那一篇（約 3–4 KB），刪除只移除對應的 key，不必讀寫全部資料；開啟 Popup 或控制面板時仍會一次讀取全部貼文。
 - **寫入失敗提示**：若儲存時仍發生錯誤，系統會自動彈出提示。建議定期將資料匯出為「完整版資料備份檔案」並清理不必要的舊資料。
+- **偏好設定**：與貼文分開存在 `chrome.storage.local` 的三個 key：`themePreference`（`light`／`dark`，跟隨系統時不存在）、`soundEffects`（`false` 表示關閉音效，不存在時視為開啟）與 `backgroundMusic`（`true` 表示開啟背景音樂，不存在時視為關閉）。這三個 key 不屬於貼文，不會被匯出、匯入或「清除全部」影響。
 
 ---
 
@@ -767,6 +791,8 @@ interface SavedArticle {
 | `https://threads.com/*` | 主機權限 | 允許在非 www 前綴的 Threads 網域執行相同操作。 |
 | `https://www.threads.net/*` | 主機權限 | 支援透過官方 threads.net 網域載入即時預覽 Frame 與發文時間同步。 |
 | `https://threads.net/*` | 主機權限 | 支援非 www threads.net 網域主機權限。 |
+| `web_accessible_resources` | 資源開放 | 只把 `sounds/save.ogg` 與 `sounds/error.ogg` 開放給上述四個 Threads 網域，讓 Threads 頁面上的 content script 能播放儲存與錯誤音效；其他網站讀不到這兩個檔案。 |
+| `minimum_chrome_version: 123` | 相容性 | 介面配色使用 CSS `light-dark()`，需要 Chrome 123 以上；較舊的瀏覽器不會安裝這個版本。 |
 
 ### 內容安全政策 (CSP) 規範
 
@@ -775,7 +801,7 @@ interface SavedArticle {
   "extension_pages": "script-src 'self'; object-src 'self'; frame-src https://www.threads.com https://www.threads.net https://*.threads.com https://*.threads.net;"
 }
 ```
-- **禁止外部腳本**：所有頁面僅載入本機自帶之腳本（`script-src 'self'`），不載入任何外部 CDN 腳本或遠端代碼；唯一的外部資源是 `popup.css`、`dashboard.css` 以 `@import` 引入的 Google Fonts 字型樣式表。
+- **禁止外部腳本**：所有頁面僅載入本機自帶之腳本（`script-src 'self'`），不載入任何外部 CDN 腳本或遠端代碼；唯一的外部資源是 `ui.css` 以 `@import` 引入的 Google Fonts 字型樣式表（Playfair Display、Noto Serif TC、Geist、Geist Mono、Noto Sans TC）；音效與背景音樂隨擴充功能打包，不從網路載入。
 - **安全 Frame 來源**：僅限定允許嵌入來自 Threads 官方網域（`threads.com` 與 `threads.net`）之 iframe 預覽元件。
 
 ---
@@ -839,25 +865,19 @@ const posts = [
 
 匯入模組採兩階段解析管線：
 
-```
-[選擇檔案 (.js / .json)]   或   [Popup 直接貼上匯出檔內容]
-           │                              │
-           └──────────────┬───────────────┘
-                          ▼
-      [階段一] JSON.parse 解析 const posts = [...] 陣列
-                          │ (失敗，例如單引號字串或未加引號的鍵)
-                          ▼
-     [階段二] 正規表達式抽取器 (Token Pattern Extraction)
-                          │
-                          ▼
-        [匯入模式選擇 Modal (合併資料 / 完全覆寫)]
-                          │
-                          ▼ (選擇「完全覆寫」時)
-          [二次確認 Modal：確認完全覆寫 / 取消]
+```mermaid
+flowchart TD
+    A["選擇檔案（.js / .json）"] --> C
+    B["在 Popup 貼上匯出檔內容"] --> C
+    C["階段一：JSON.parse 解析 const posts = [...] 陣列"] -->|"成功"| E
+    C -->|"失敗，例如單引號字串或未加引號的鍵"| D["階段二：正規表達式抽出內嵌碼"]
+    D --> E["選擇匯入方式：合併資料或完全覆寫"]
+    E -->|"合併資料"| F["加入尚未存在的貼文"]
+    E -->|"完全覆寫"| G["二次確認：確認完全覆寫或取消"]
 ```
 
 > [!NOTE]
-> `.json` 檔會直接以 `JSON.parse` 解析（支援純陣列或 `{ "savedArticles": [...] }` 包裝）；`.js` 檔與 Popup 貼上的文字則走上述兩階段管線。三種匯出格式中，「精選資料」與「完整備份」是標準 JSON，會在階段一解析；「僅嵌入碼」是單引號字串陣列，由階段二抽出每段帶有 `data-text-post-permalink` 的內嵌碼。擴充功能頁面的 CSP 禁止 `eval` 與 `new Function`，因此不以動態求值解析 JavaScript 物件寫法。
+> `.json` 檔會直接以 `JSON.parse` 解析（支援純陣列或 `{ "savedArticles": [...] }` 包裝）；`.js` 檔與 Popup 貼上的文字則走上述兩階段管線。三種匯出格式中，「精選格式」與「完整備份」是標準 JSON，會在階段一解析；「僅內嵌碼」是單引號字串陣列，由階段二抽出每段帶有 `data-text-post-permalink` 的內嵌碼。擴充功能頁面的 CSP 禁止 `eval` 與 `new Function`，因此不以動態求值解析 JavaScript 物件寫法。
 
 > [!IMPORTANT]
 > - **合併資料 (Merge)**：以貼文代碼（儲存 key）判斷重複，threads.com 與 threads.net 的同一篇視為同一筆。已存在的貼文會略過，現有資料完全保留。
@@ -871,24 +891,26 @@ const posts = [
 
 | 按鍵 | 操作動作 |
 | :--- | :--- |
-| `ESC` | 關閉即時預覽彈窗 (Close Modal) |
+| `ESC` | 關閉預覽抽屜，焦點回到該卡片的作者名稱 |
 | `←` (左方向鍵) | 切換至上一篇貼文預覽 (Navigate Previous) |
 | `→` (右方向鍵) | 切換至下一篇貼文預覽 (Navigate Next) |
-| `點擊遮罩外側` | 關閉即時預覽彈窗 |
+| `Tab` | 在抽屜內循環移動焦點，不會跑到背後的頁面 |
+| `點擊背景` | 關閉預覽抽屜 |
 
-### 儀表板常用操作對照表
+### 控制面板常用操作對照表
 
 | 操作目標 | 操作方式 |
 | :--- | :--- |
-| **開啟即時預覽** | 點擊貼文卡片下方的「即時預覽」按鈕。 |
-| **切換預覽分頁** | 在預覽視窗工具列點擊「原生內嵌預覽」或「原始碼與中繼資料」；預覽寬度固定為官方標準 658px，高度自動貼合貼文內容。 |
-| **批次操作** | 勾選個別卡片左上角核取方塊，或點擊工具列的「全選」勾選目前篩選結果的全部貼文（包含尚未載入的卡片）；未勾選時三個批次按鈕皆為停用狀態，勾選後即可使用「更新貼文資料」、「批次複製 Embed」與「批次刪除」。 |
-| **依標籤/作者篩選** | 點擊側邊欄標籤雲或作者雲中的任一徽章，即可快速套用篩選；再次點擊即取消。 |
-| **多維度分類與排序** | 透過側邊欄「整理與篩選」的下拉選單切換 6 種分類篩選（如無內文、失效貼文）與 6 種排序規則。 |
-| **背景同步更新** | 側邊欄與批次工具列的「更新貼文資料」行為相同：有勾選時只更新目前篩選結果中被勾選的貼文，沒有勾選時更新整個篩選結果。執行中可隨時「暫停/繼續」或「取消」。 |
-| **自選範圍匯出** | 先勾選欲匯出的貼文，再點擊任一匯出按鈕，即只匯出勾選項目；未勾選時匯出目前篩選結果。 |
+| **開啟即時預覽** | 點卡片上的作者名稱或卡片空白處，預覽抽屜從右側滑出。 |
+| **切換預覽分頁** | 在抽屜上方點「內嵌預覽」或「原始碼與中繼資料」；內嵌卡片隨抽屜寬度縮放（最寬 560px），高度自動貼合貼文內容。 |
+| **批次操作** | 勾選卡片左上角的核取方塊，或點列表頭的「全選」勾選目前篩選結果的全部貼文（包含尚未載入的卡片）；勾選後列表頭換成批次列，可使用「更新資料」「複製內嵌碼」「刪除」與「取消選取」。 |
+| **分類與篩選** | 點側欄頂端的分類格（全部、失效、無內文、無發文時間），或標籤雲、作者雲、卡片上的標籤；再點一次已選的標籤或作者即取消。標籤或作者超過 15 個時，點「全部 N 個…」展開。 |
+| **排序** | 在列表頭右側的排序選單切換 6 種排序規則；卡片上的時間會跟著顯示「儲存」或「發文」時間。 |
+| **背景同步更新** | 側欄「資料」的「更新資料」與批次列的「更新資料」行為相同：有勾選時只更新目前篩選結果中被勾選的貼文，沒有勾選時更新整個篩選結果。執行中側欄會出現進度條，可隨時「暫停／繼續」或「停止」。 |
+| **自選範圍匯出** | 先勾選欲匯出的貼文，再從側欄「資料」的「匯出」選單選格式，即只匯出勾選項目；未勾選時匯出目前篩選結果。選單標題會寫出這次的範圍。 |
+| **外觀與聲音** | 點右上角的「設定」：外觀可選跟隨系統、淺色或深色；音效與背景音樂各有一個開關。 |
 | **復原誤刪** | 單篇刪除、批次刪除與清除全部後，畫面下方中央的提示會出現「復原」按鈕，預設 8 秒內點擊即可還原；滑鼠移到提示上或焦點停在按鈕上時暫停倒數。 |
-| **匯入資料** | Popup 點「匯入」後可選擇讀取檔案或直接貼上內容；Dashboard 點「匯入資料檔案」選擇備份檔，接著選擇合併或覆寫。 |
+| **匯入資料** | Popup 在「更多」選單點「匯入…」後可選擇讀取檔案或直接貼上內容；控制面板在側欄「資料」點「匯入」選擇備份檔，接著選擇合併或覆寫。 |
 
 ---
 
@@ -927,7 +949,7 @@ const posts = [
 > [!TIP]
 > **問題：不小心刪錯貼文或按到「清除全部資料」怎麼辦？**
 > - 刪除、批次刪除與清除全部皆為可復原操作，畫面下方中央的提示列會顯示「復原」按鈕，預設 8 秒內點擊即可完整還原；滑鼠移到提示上或焦點停在按鈕上時倒數會暫停。
-> - 提示消失後即無法復原，因此執行清除前仍建議先「匯出完整資料」備份。
+> - 提示消失後即無法復原，因此執行清除前仍建議先以「完整備份」格式匯出。
 > - 匯入時若選擇「完全覆寫」，必須再通過一次確認對話框；關閉視窗或按 `ESC` 一律視為取消。
 
 ---
@@ -959,9 +981,11 @@ cd Threadkeep
 ### 開發注意事項與架構規範
 
 - **零外部依賴原則**：專案嚴格保持原生輕量化設計，請勿引入任何 npm 執行期依賴或外部 CDN 框架。
-- **嚴格 CSP 相容**：所有 HTML 頁面及注入的腳本**禁止使用行內樣式 (inline style) 與行內事件監聽器**（例如 `onclick="..."`），必須使用 `addEventListener` 進行事件綁定。
+- **嚴格 CSP 相容**：HTML 中**禁止使用 `style` 屬性與行內事件監聽器**（例如 `onclick="..."`），必須使用 `addEventListener` 進行事件綁定；需要由程式決定的數值（例如瀑布流的跨列數、游標光斑位置、卡片淡入順序）一律由 JS 設定 CSS 變數或單一屬性。
+- **共用設計系統**：顏色、字型、字級與圓角一律使用 `ui.css` 的變數，新元件先找 `ui.css` 裡現成的 `.btn`、`.field`、`.check`、`.switch`、`.menu`、`.tag-chip` 等類別；字級只用 12、14、16、20px。新增顏色時要同時給出淺色與深色值，並確認文字對比至少 4.5:1。
 - **欄位擴展規範**：若在 `content.js` 中新增或修改了儲存欄位，請務必同步更新本 README 的 [資料模型與儲存 Schema](#資料模型與儲存-schema) 區段、[llms.txt](./llms.txt) 與匯出/匯入模組。
 - **禁用原生對話框**：`confirm()`、`alert()` 與 `prompt()` 一律以頁內 Modal 取代。Popup 失焦時原生對話框會連同 Popup 一併關閉並回傳預設值，極易造成誤觸破壞性操作。
+- **聲音**：新增音效時把檔案放進 `sounds/` 並登記到 `sound.js` 的 `SOUND_EFFECT_FILES`，在真的成功或失敗時才呼叫 `playSound`；若要在 Threads 頁面播放，還要加進 `manifest.json` 的 `web_accessible_resources`。音效只能補充，畫面與 live region 仍要傳達同樣的結果。
 - **無障礙基本要求**：新增的 Modal 需具備 `role="dialog"`、`aria-modal="true"`、焦點鎖定與焦點還原；可點擊元素請使用 `button` 並維持 24×24px 以上的點擊區域；停用狀態請使用 `disabled` 而非僅靠 `pointer-events: none`。卡片上重複出現的按鈕要在名稱帶上是哪一篇；重畫清單時保留焦點；對話框內的元件不要用 `transition: all`。
 
 ---

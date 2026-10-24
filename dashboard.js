@@ -36,8 +36,25 @@ const searchTextCache = new WeakMap();
 const sortCollator = new Intl.Collator('zh-TW');
 const textSegmenter = new Intl.Segmenter('zh-TW', { granularity: 'grapheme' });
 const copyFeedbackTimers = new WeakMap();
+const expandedNavGroups = new Set();
+const WEEK_MS = 7 * 86400000;
+const ENTER_STAGGER_LIMIT = 12;
+const GREETINGS = [
+  { until: 5, text: '夜深了' },
+  { until: 11, text: '早安' },
+  { until: 18, text: '午安' },
+  { until: 24, text: '晚安' }
+];
 document.addEventListener('DOMContentLoaded', async () => {
   void setupThemePreference(document.getElementById('themeSelect'));
+  void setupSoundSwitches({
+    effectsSwitch: document.getElementById('soundEffectsSwitch'),
+    musicSwitch: document.getElementById('backgroundMusicSwitch')
+  });
+  setupBackgroundMusic();
+  setupMenus();
+  setupAmbientLight();
+  renderGreeting();
   await loadArticles();
   setupEventListeners();
   setupModalListeners();
@@ -57,7 +74,6 @@ function setupStorageSync() {
     allArticles = result.articles;
     pruneSelection();
     calculateStatistics();
-    updateFilterValueOptions();
     applyFilters({ keepRendered: true });
   });
 }
@@ -72,134 +88,137 @@ async function loadArticles() {
   calculateStatistics();
   sortArticles();
   renderArticles();
-  updateFilterValueOptions();
-  renderTagsCloud();
-  renderAuthorsCloud();
+  renderFilterNav();
 }
 function calculateStatistics() {
-  const total = allArticles.length;
-  const expired = allArticles.filter(a => isExpiredArticle(a)).length;
-  const authors = new Set(allArticles.map(a => a.author).filter(Boolean));
-  const uniqueAuthors = authors.size;
-  const uniqueTags = getTagGroups(allArticles).length;
-  document.getElementById('totalSavedCount').textContent = total;
-  document.getElementById('totalExpiredCount').textContent = expired;
-  document.getElementById('uniqueAuthorsCount').textContent = uniqueAuthors;
-  document.getElementById('uniqueTagsCount').textContent = uniqueTags;
-  if (expired > 0) {
-    document.getElementById('totalExpiredCount').classList.add('danger-text');
+  const countOf = (filter) => allArticles.filter(article => articleMatchesFilter(article, filter, '')).length;
+  const expired = countOf('expired');
+  const expiredCount = document.getElementById('countExpired');
+  document.getElementById('countAll').textContent = allArticles.length;
+  expiredCount.textContent = expired;
+  expiredCount.classList.toggle('is-alert', expired > 0);
+  document.getElementById('countNoContent').textContent = countOf('noContent');
+  document.getElementById('countNoTimestamp').textContent = countOf('noTimestamp');
+  document.getElementById('uniqueAuthorsCount').textContent = getAuthorEntries().length;
+  document.getElementById('uniqueTagsCount').textContent = getTagGroups(allArticles).length;
+  const weekStart = Date.now() - WEEK_MS;
+  document.getElementById('welcomeTotal').textContent = allArticles.length;
+  document.getElementById('welcomeWeek').textContent = allArticles
+    .filter(article => new Date(article.savedAt).getTime() >= weekStart).length;
+}
+function renderGreeting() {
+  const hour = new Date().getHours();
+  const greeting = GREETINGS.find(({ until }) => hour < until);
+  document.getElementById('welcomeTitle').textContent = greeting.text;
+}
+function setFilter(filter, value = '') {
+  currentFilter = filter;
+  currentFilterValue = value;
+  applyFilters({ announceResults: true });
+}
+function isActiveFilter(filter, value) {
+  return currentFilter === filter && currentFilterValue.toLowerCase() === String(value).toLowerCase();
+}
+function toggleFilter(filter, value) {
+  if (isActiveFilter(filter, value)) {
+    setFilter('all');
   } else {
-    document.getElementById('totalExpiredCount').classList.remove('danger-text');
+    setFilter(filter, value);
   }
 }
-function getFocusedBadgeKey(cloudContainer) {
-  const active = document.activeElement;
-  return active && cloudContainer.contains(active) ? active.dataset.filterKey : null;
+function getFilterTitle() {
+  if (currentFilter === 'tag') return `#${currentFilterValue}`;
+  if (currentFilter === 'author') return currentFilterValue;
+  return document.querySelector(`#viewNav [data-filter="${currentFilter}"]`).dataset.title;
 }
-function restoreBadgeFocus(cloudContainer, filterKey) {
-  if (filterKey === null) return;
-  const badge = Array.from(cloudContainer.querySelectorAll('.tag-badge'))
-    .find(el => el.dataset.filterKey === filterKey);
-  if (badge) badge.focus();
+function getTagEntries() {
+  return getTagGroups(allArticles)
+    .sort((a, b) => b.count - a.count)
+    .map(({ key, label, count }) => ({ key, value: label, display: `#${label}`, count }));
 }
-function renderTagsCloud() {
-  const cloudContainer = document.getElementById('tagsCloud');
-  if (!cloudContainer) return;
-  const focusedKey = getFocusedBadgeKey(cloudContainer);
-  cloudContainer.innerHTML = '';
-  const allSortedTags = getTagGroups(allArticles).sort((a, b) => b.count - a.count);
-  const sortedTags = allSortedTags.slice(0, CLOUD_VISIBLE_LIMIT);
-  if (sortedTags.length === 0) {
-    const emptyEl = document.createElement('span');
-    emptyEl.className = 'cloud-empty';
-    emptyEl.textContent = '暫無標籤';
-    cloudContainer.appendChild(emptyEl);
-    return;
-  }
-  sortedTags.forEach(({ key, label, count }) => {
-    const isActive = currentFilter === 'tag' && currentFilterValue.toLowerCase() === key;
-    const badge = document.createElement('button');
-    badge.type = 'button';
-    badge.className = 'tag-badge';
-    badge.dataset.filterKey = key;
-    badge.setAttribute('aria-pressed', String(isActive));
-    if (isActive) {
-      badge.classList.add('active');
-    }
-    badge.textContent = `#${label} (${count})`;
-    badge.addEventListener('click', () => {
-      if (currentFilter === 'tag' && currentFilterValue.toLowerCase() === key) {
-        currentFilter = 'all';
-        currentFilterValue = '';
-        document.getElementById('filterSelect').value = 'all';
-      } else {
-        currentFilter = 'tag';
-        currentFilterValue = label;
-        document.getElementById('filterSelect').value = 'tag';
-      }
-      updateFilterValueOptions();
-      applyFilters({ announceResults: true });
-    });
-    cloudContainer.appendChild(badge);
-  });
-  appendCloudOverflowNote(cloudContainer, allSortedTags.length, sortedTags.length, '個標籤');
-  restoreBadgeFocus(cloudContainer, focusedKey);
-}
-function renderAuthorsCloud() {
-  const cloudContainer = document.getElementById('authorsCloud');
-  if (!cloudContainer) return;
-  const focusedKey = getFocusedBadgeKey(cloudContainer);
-  cloudContainer.innerHTML = '';
-  const authorCounts = {};
+function getAuthorEntries() {
+  const authorCounts = new Map();
   allArticles.map(a => a.author).filter(Boolean).forEach(author => {
-    authorCounts[author] = (authorCounts[author] || 0) + 1;
+    authorCounts.set(author, (authorCounts.get(author) || 0) + 1);
   });
-  const allSortedAuthors = Object.entries(authorCounts).sort((a, b) => b[1] - a[1]);
-  const sortedAuthors = allSortedAuthors.slice(0, CLOUD_VISIBLE_LIMIT);
-  if (sortedAuthors.length === 0) {
-    const emptyEl = document.createElement('span');
-    emptyEl.className = 'cloud-empty';
-    emptyEl.textContent = '暫無作者';
-    cloudContainer.appendChild(emptyEl);
+  return [...authorCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([author, count]) => ({ key: author.toLowerCase(), value: author, display: author, count }));
+}
+function getFocusedBadgeKey(container) {
+  const active = document.activeElement;
+  return active && container.contains(active) ? active.dataset.filterKey : null;
+}
+function restoreBadgeFocus(container, filterKey) {
+  if (filterKey === null) return;
+  const item = Array.from(container.querySelectorAll('[data-filter-key]'))
+    .find(el => el.dataset.filterKey === filterKey);
+  if (item) item.focus();
+}
+function getCloudWeight(count, maxCount) {
+  const ratio = count / maxCount;
+  if (ratio >= 0.6) return 'strong';
+  if (ratio >= 0.3) return 'medium';
+  return 'light';
+}
+function renderFilterNav() {
+  document.querySelectorAll('#viewNav [data-filter]').forEach(item => {
+    item.setAttribute('aria-pressed', String(item.dataset.filter === currentFilter));
+  });
+  renderNavGroup(document.getElementById('tagsCloud'), getTagEntries(), 'tag', '個標籤', '暫無標籤');
+  renderNavGroup(document.getElementById('authorsCloud'), getAuthorEntries(), 'author', '位作者', '暫無作者');
+}
+function renderNavGroup(container, entries, filterType, unit, emptyText) {
+  const focusedKey = getFocusedBadgeKey(container);
+  container.replaceChildren();
+  if (entries.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'cloud-empty';
+    empty.textContent = emptyText;
+    container.appendChild(empty);
     return;
   }
-  sortedAuthors.forEach(([author, count]) => {
-    const isActive = currentFilter === 'author' && currentFilterValue === author;
-    const badge = document.createElement('button');
-    badge.type = 'button';
-    badge.className = 'tag-badge';
-    badge.dataset.filterKey = author;
-    badge.setAttribute('aria-pressed', String(isActive));
-    if (isActive) {
-      badge.classList.add('active');
-    }
-    badge.textContent = `${author} (${count})`;
-    badge.addEventListener('click', () => {
-      if (currentFilter === 'author' && currentFilterValue === author) {
-        currentFilter = 'all';
-        currentFilterValue = '';
-        document.getElementById('filterSelect').value = 'all';
-      } else {
-        currentFilter = 'author';
-        currentFilterValue = author;
-        document.getElementById('filterSelect').value = 'author';
-      }
-      updateFilterValueOptions();
-      const filterValSelect = document.getElementById('filterValueSelect');
-      if (filterValSelect) filterValSelect.value = currentFilterValue;
-      applyFilters({ announceResults: true });
-    });
-    cloudContainer.appendChild(badge);
+  const expanded = expandedNavGroups.has(filterType);
+  const maxCount = entries[0].count;
+  const visible = expanded
+    ? entries
+    : entries.filter((entry, index) => index < CLOUD_VISIBLE_LIMIT || isActiveFilter(filterType, entry.value));
+  visible.forEach(entry => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = filterType === 'tag' ? 'cloud-chip tag-chip' : 'cloud-chip';
+    button.dataset.filterKey = entry.key;
+    button.dataset.weight = getCloudWeight(entry.count, maxCount);
+    button.setAttribute('aria-pressed', String(isActiveFilter(filterType, entry.value)));
+    button.title = `${entry.display}，${entry.count} 篇`;
+    const label = document.createElement('span');
+    label.className = 'cloud-label';
+    label.textContent = entry.display;
+    const count = document.createElement('span');
+    count.className = 'cloud-count num';
+    count.textContent = entry.count;
+    button.append(label, count);
+    button.addEventListener('click', () => toggleFilter(filterType, entry.value));
+    container.appendChild(button);
   });
-  appendCloudOverflowNote(cloudContainer, allSortedAuthors.length, sortedAuthors.length, '位作者');
-  restoreBadgeFocus(cloudContainer, focusedKey);
-}
-function appendCloudOverflowNote(container, total, shown, unit) {
-  if (total <= shown) return;
-  const note = document.createElement('span');
-  note.className = 'cloud-overflow-note';
-  note.textContent = `顯示前 ${shown} ${unit}，共 ${total} ${unit}`;
-  container.appendChild(note);
+  if (entries.length > CLOUD_VISIBLE_LIMIT) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'cloud-more';
+    more.dataset.filterKey = `more-${filterType}`;
+    more.setAttribute('aria-expanded', String(expanded));
+    more.textContent = expanded ? '收合' : `全部 ${entries.length} ${unit}`;
+    more.addEventListener('click', () => {
+      if (expanded) {
+        expandedNavGroups.delete(filterType);
+      } else {
+        expandedNavGroups.add(filterType);
+      }
+      renderFilterNav();
+    });
+    container.appendChild(more);
+  }
+  restoreBadgeFocus(container, focusedKey);
 }
 function setupEventListeners() {
   document.getElementById('searchInput').addEventListener('input', () => {
@@ -213,21 +232,17 @@ function setupEventListeners() {
     sortArticles();
     renderArticles();
   });
-  const filterSelect = document.getElementById('filterSelect');
-  filterSelect.addEventListener('change', (e) => {
-    currentFilter = e.target.value;
-    currentFilterValue = '';
-    updateFilterValueOptions();
-    applyFilters({ announceResults: true });
-  });
-  const filterValueSelect = document.getElementById('filterValueSelect');
-  filterValueSelect.addEventListener('change', (e) => {
-    currentFilterValue = e.target.value;
-    applyFilters({ announceResults: true });
+  document.getElementById('viewNav').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-filter]');
+    if (item) setFilter(item.dataset.filter);
   });
   const selectAllCheckbox = document.getElementById('selectAllCheckbox');
   selectAllCheckbox.addEventListener('change', (e) => {
     toggleSelectAll(e.target.checked);
+  });
+  document.getElementById('clearSelectionBtn').addEventListener('click', clearSelection);
+  document.getElementById('exportMenu').addEventListener('beforetoggle', (e) => {
+    if (e.newState === 'open') updateExportScopeLabel();
   });
   const articlesContainer = document.getElementById('articlesContainer');
   articlesContainer.addEventListener('click', handleArticleListClick);
@@ -246,30 +261,19 @@ function setupEventListeners() {
     isUpdatePaused = !isUpdatePaused;
     const pauseBtn = document.getElementById('pauseUpdateBtn');
     const updateStatusBadge = document.getElementById('updateStatusBadge');
+    const updateControlsContainer = document.getElementById('updateControlsContainer');
     if (isUpdatePaused) {
-      if (pauseBtn) {
-        pauseBtn.textContent = '繼續';
-        pauseBtn.classList.remove('btn-primary');
-        pauseBtn.classList.add('btn-warning');
-      }
-      if (updateStatusBadge) {
-        updateStatusBadge.textContent = '已暫停';
-        updateStatusBadge.classList.add('paused');
-      }
+      pauseBtn.textContent = '繼續';
+      updateControlsContainer.dataset.paused = 'true';
+      updateStatusBadge.textContent = '已暫停';
       if (activeProgressToast) {
         activeProgressToast.setPaused(true);
       }
       showToast('貼文更新已暫停');
     } else {
-      if (pauseBtn) {
-        pauseBtn.textContent = '暫停';
-        pauseBtn.classList.remove('btn-warning');
-        pauseBtn.classList.add('btn-primary');
-      }
-      if (updateStatusBadge) {
-        updateStatusBadge.textContent = '執行中';
-        updateStatusBadge.classList.remove('paused');
-      }
+      pauseBtn.textContent = '暫停';
+      delete updateControlsContainer.dataset.paused;
+      updateStatusBadge.textContent = '執行中';
       if (activeProgressToast) {
         activeProgressToast.setPaused(false);
       }
@@ -395,7 +399,7 @@ function showConfirm(title, message, { confirmText = '確定', danger = true } =
   document.getElementById('modalMessage').textContent = message;
   const confirmBtn = document.getElementById('modalConfirmBtn');
   confirmBtn.textContent = confirmText;
-  confirmBtn.className = danger ? 'btn btn-danger' : 'btn btn-primary';
+  confirmBtn.className = danger ? 'btn btn-danger-solid' : 'btn btn-primary';
   activateModal('confirmModal', {
     initialFocusId: 'modalCancelBtn',
     onDismiss: () => closeConfirmModal(false)
@@ -428,39 +432,11 @@ function closeImportModal(mode) {
     importModalResolve = null;
   }
 }
-function updateFilterValueOptions() {
-  const container = document.getElementById('filterValueContainer');
-  const select = document.getElementById('filterValueSelect');
-  if (!container || !select) return;
-  select.innerHTML = '<option value="">全部</option>';
-  let values = [];
-  switch (currentFilter) {
-    case 'author':
-      values = [...new Set(allArticles.map(a => a.author).filter(Boolean))];
-      values.sort((a, b) => a.localeCompare(b, 'zh-TW'));
-      break;
-    case 'tag':
-      values = getTagGroups(allArticles).map(group => group.label);
-      values.sort((a, b) => a.localeCompare(b, 'zh-TW'));
-      break;
-    default:
-      container.dataset.open = 'false';
-      return;
-  }
-  if (values.length > 0) {
-    container.dataset.open = 'true';
-    values.forEach(val => {
-      const opt = document.createElement('option');
-      opt.value = val;
-      opt.textContent = val;
-      if (val.toLowerCase() === currentFilterValue.toLowerCase()) {
-        opt.selected = true;
-      }
-      select.appendChild(opt);
-    });
-  } else {
-    container.dataset.open = 'false';
-  }
+function updateExportScopeLabel() {
+  const count = getExportTargetArticles().length;
+  document.getElementById('exportScopeLabel').textContent = selectedArticleIds.size > 0
+    ? `匯出已選取的 ${count} 篇`
+    : `匯出目前列表的 ${count} 篇`;
 }
 function getArticleSearchText(article) {
   let text = searchTextCache.get(article);
@@ -482,8 +458,7 @@ function applyFilters({ keepRendered = false, announceResults = false } = {}) {
   });
   sortArticles();
   renderArticles({ keepRendered });
-  renderTagsCloud();
-  renderAuthorsCloud();
+  renderFilterNav();
   if (announceResults) {
     announce(filteredArticles.length === 0 ? '找不到符合的貼文' : `找到 ${filteredArticles.length} 篇貼文`);
   }
@@ -544,16 +519,19 @@ function focusRestoredArticle(articleId) {
   }
 }
 function matchesFilter(article) {
-  switch (currentFilter) {
+  return articleMatchesFilter(article, currentFilter, currentFilterValue);
+}
+function articleMatchesFilter(article, filter, value) {
+  switch (filter) {
     case 'all':
       return true;
     case 'author':
-      if (!currentFilterValue) return true;
-      return (article.author || '').toLowerCase() === currentFilterValue.toLowerCase();
+      if (!value) return true;
+      return (article.author || '').toLowerCase() === value.toLowerCase();
     case 'tag':
-      if (!currentFilterValue) return true;
+      if (!value) return true;
       return (article.tags || []).some(tag =>
-        (tag || '').toLowerCase() === currentFilterValue.toLowerCase()
+        (tag || '').toLowerCase() === value.toLowerCase()
       );
     case 'noContent':
       return !article.content || !article.content.trim();
@@ -609,11 +587,15 @@ function renderArticles({ keepRendered = false } = {}) {
   const container = document.getElementById('articlesContainer');
   if (!container) return;
   if (loadMoreObserver) loadMoreObserver.disconnect();
+  masonryObserver.disconnect();
   const focus = captureCardFocus(container);
   container.innerHTML = '';
+  container.classList.toggle('is-entering', !keepRendered);
   document.getElementById('loadMoreContainer').replaceChildren();
   const targetCount = keepRendered ? Math.max(renderedCount, RENDER_BATCH_SIZE) : RENDER_BATCH_SIZE;
   renderedCount = 0;
+  document.getElementById('articleListHeading').textContent = getFilterTitle();
+  document.getElementById('resultCount').textContent = `${filteredArticles.length} 篇`;
   setArticleListSemantics(container, filteredArticles.length > 0);
   if (filteredArticles.length === 0) {
     const empty = document.createElement('div');
@@ -621,7 +603,7 @@ function renderArticles({ keepRendered = false } = {}) {
     empty.innerHTML = `
       <img class="empty-mascot" src="images/mascot-320.webp" alt="" width="320" height="334">
       <p class="empty-title">${allArticles.length === 0 ? '尚未儲存任何貼文' : '找不到符合的貼文'}</p>
-      <p class="empty-description">${allArticles.length === 0 ? '在 Threads 貼文選單點「取得內嵌程式碼」，就會自動存到這裡。' : '請嘗試更換篩選條件或搜尋關鍵字。'}</p>
+      <p class="empty-description">${allArticles.length === 0 ? '在 Threads 貼文選單點「取得內嵌程式碼」，就會自動存到這裡。' : '換個分類或搜尋關鍵字試試。'}</p>
     `;
     container.appendChild(empty);
     updateSelectionUI();
@@ -630,6 +612,7 @@ function renderArticles({ keepRendered = false } = {}) {
   }
   appendArticleCards(container, targetCount);
   updateSelectionUI();
+  markCurrentRow();
   restoreCardFocus(container, focus);
 }
 function appendArticleCards(container, count) {
@@ -640,8 +623,10 @@ function appendArticleCards(container, count) {
   let firstNewCard = null;
   for (let i = renderedCount; i < end; i++) {
     const card = createArticleCard(filteredArticles[i]);
+    card.style.setProperty('--i', Math.min(i - renderedCount, ENTER_STAGGER_LIMIT));
     if (!firstNewCard) firstNewCard = card;
     fragment.appendChild(card);
+    masonryObserver.observe(card);
   }
   renderedCount = end;
   let loadMoreBtn = null;
@@ -675,18 +660,30 @@ function refreshRenderedCard(article) {
   const card = container ? container.querySelector(`.article-card[data-id="${CSS.escape(article.id)}"]`) : null;
   if (!card) return;
   const focus = captureCardFocus(container);
-  card.replaceWith(createArticleCard(article));
+  const nextCard = createArticleCard(article);
+  masonryObserver.unobserve(card);
+  card.replaceWith(nextCard);
+  masonryObserver.observe(nextCard);
   if (focus && focus.id === article.id) restoreCardFocus(container, focus);
 }
+const masonryObserver = new ResizeObserver((entries) => {
+  const container = document.getElementById('articlesContainer');
+  const style = getComputedStyle(container);
+  const rowHeight = parseFloat(style.gridAutoRows);
+  const gap = parseFloat(style.columnGap);
+  entries.forEach(({ target, borderBoxSize }) => {
+    const height = borderBoxSize[0].blockSize;
+    target.style.gridRowEnd = `span ${Math.ceil((height + gap) / rowHeight)}`;
+  });
+});
 function findArticleById(articleId) {
   return allArticles.find(a => a.id === articleId) || null;
 }
 const CARD_ICON_MARKUP = {
-  preview: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
-  view: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
-  copy: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
-  delete: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
-  check: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+  view: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>',
+  copy: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
+  delete: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 7 20 7"/><path d="M18 7v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7"/><path d="M9 7V4h6v3"/></svg>',
+  check: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>'
 };
 const cardIconCache = new Map();
 function cloneCardIcon(name) {
@@ -709,9 +706,13 @@ function formatFullTime(isoString) {
   if (!isoString || isNaN(date.getTime())) return '';
   return date.toLocaleString('zh-TW', { dateStyle: 'long', timeStyle: 'short' });
 }
-function createTimeLine(label, displayText, isoString) {
-  const line = document.createElement('div');
-  line.textContent = `${label}：${displayText}`;
+function createRowTime(article) {
+  const useSavedTime = currentSort.startsWith('savedAt');
+  const isoString = useSavedTime ? article.savedAt : article.timestamp;
+  const displayText = formatTime(isoString);
+  const line = document.createElement('span');
+  line.className = 'time-info';
+  line.textContent = `${useSavedTime ? '儲存' : '發文'} ${displayText}`;
   const fullTime = formatFullTime(isoString);
   line.title = fullTime || displayText;
   if (fullTime && RELATIVE_TIME_PATTERN.test(displayText)) {
@@ -722,6 +723,15 @@ function createTimeLine(label, displayText, isoString) {
   }
   return line;
 }
+function createCardIconButton(tagName, className, icon, label, title) {
+  const button = document.createElement(tagName);
+  button.className = `btn btn-icon btn-sm ${className}`.trim();
+  if (tagName === 'button') button.type = 'button';
+  button.setAttribute('aria-label', label);
+  button.title = title;
+  button.appendChild(cloneCardIcon(icon));
+  return button;
+}
 function createArticleCard(article) {
   const card = document.createElement('div');
   card.className = 'article-card';
@@ -731,34 +741,31 @@ function createArticleCard(article) {
   }
   card.dataset.id = article.id;
   const articleLabel = getArticleLabel(article);
-  const chkLabel = document.createElement('label');
-  chkLabel.className = 'checkbox-container card-checkbox';
   const chkInput = document.createElement('input');
   chkInput.type = 'checkbox';
-  chkInput.className = 'article-checkbox';
+  chkInput.className = 'check article-checkbox';
   chkInput.checked = selectedArticleIds.has(article.id);
   chkInput.dataset.articleId = article.id;
   chkInput.setAttribute('aria-label', `選取：${articleLabel}`);
-  const chkMark = document.createElement('span');
-  chkMark.className = 'checkmark';
-  chkLabel.appendChild(chkInput);
-  chkLabel.appendChild(chkMark);
-  card.appendChild(chkLabel);
+  card.appendChild(chkInput);
   const wrapper = document.createElement('div');
   wrapper.className = 'card-content-wrapper';
   const header = document.createElement('div');
   header.className = 'card-header';
   const authorEl = document.createElement('h3');
   authorEl.className = 'author';
-  authorEl.textContent = article.author || '未填寫作者';
-  const timeInfo = document.createElement('div');
-  timeInfo.className = 'time-info';
-  const timePost = createTimeLine('發文', article.timestampTitle || formatTime(article.timestamp), article.timestamp);
-  const timeSaved = createTimeLine('儲存', formatTime(article.savedAt), article.savedAt);
-  timeInfo.appendChild(timePost);
-  timeInfo.appendChild(timeSaved);
-  header.appendChild(authorEl);
-  header.appendChild(timeInfo);
+  const authorBtn = document.createElement('button');
+  authorBtn.type = 'button';
+  authorBtn.className = 'author-btn';
+  authorBtn.dataset.action = 'preview';
+  const authorName = article.author || '未填寫作者';
+  const authorText = document.createElement('span');
+  authorText.className = 'author-name';
+  authorText.textContent = authorName;
+  authorBtn.appendChild(authorText);
+  authorBtn.setAttribute('aria-label', `預覽：${articleLabel}`);
+  authorEl.appendChild(authorBtn);
+  header.append(authorEl, createRowTime(article));
   wrapper.appendChild(header);
   const bodyEl = document.createElement('div');
   bodyEl.className = 'card-body';
@@ -778,77 +785,69 @@ function createArticleCard(article) {
     expandBtn.dataset.action = 'toggle-expand';
     expandBtn.textContent = '展開全文';
     bodyEl.appendChild(expandBtn);
+  } else if (rawContent) {
+    bodyEl.textContent = rawContent;
   } else {
-    bodyEl.textContent = rawContent || '無內文說明';
+    bodyEl.classList.add('is-empty');
+    bodyEl.textContent = '無內文';
   }
   wrapper.appendChild(bodyEl);
+  const foot = document.createElement('div');
+  foot.className = 'card-foot';
+  const tagsContainer = document.createElement('div');
+  tagsContainer.className = 'card-tags';
   if (isExpiredArticle(article)) {
-    const badge = document.createElement('div');
-    badge.className = 'status-badge expired';
-    badge.textContent = `已失效 (${article.expiredReason || '無法解析'})`;
-    wrapper.appendChild(badge);
+    const badge = document.createElement('span');
+    badge.className = 'badge badge-danger';
+    badge.textContent = `已失效：${article.expiredReason || '無法解析'}`;
+    tagsContainer.appendChild(badge);
   }
-  if (article.tags && article.tags.length > 0) {
-    const tagsContainer = document.createElement('div');
-    tagsContainer.className = 'card-tags';
-    article.tags.forEach(tag => {
-      const tagEl = document.createElement('button');
-      tagEl.type = 'button';
-      tagEl.className = 'card-tag';
-      tagEl.dataset.action = 'filter-tag';
-      tagEl.dataset.tag = tag;
-      tagEl.textContent = '#' + tag;
-      tagEl.setAttribute('aria-label', `依標籤「${tag}」篩選`);
-      tagsContainer.appendChild(tagEl);
-    });
-    wrapper.appendChild(tagsContainer);
-  }
+  (article.tags || []).forEach(tag => {
+    const tagEl = document.createElement('button');
+    tagEl.type = 'button';
+    tagEl.className = 'tag-chip';
+    tagEl.dataset.action = 'filter-tag';
+    tagEl.dataset.tag = tag;
+    tagEl.textContent = '#' + tag;
+    tagEl.setAttribute('aria-pressed', String(isActiveFilter('tag', tag)));
+    tagEl.setAttribute('aria-label', `依標籤「${tag}」篩選`);
+    tagsContainer.appendChild(tagEl);
+  });
+  foot.appendChild(tagsContainer);
   const actions = document.createElement('div');
   actions.className = 'card-actions';
-  const previewBtn = document.createElement('button');
-  previewBtn.className = 'card-action-btn preview-btn';
-  previewBtn.dataset.action = 'preview';
-  previewBtn.setAttribute('aria-label', `即時預覽：${articleLabel}`);
-  previewBtn.append(cloneCardIcon('preview'), '即時預覽');
-  actions.appendChild(previewBtn);
-  const viewBtn = document.createElement('a');
-  viewBtn.className = 'card-action-btn primary';
+  const viewBtn = createCardIconButton('a', '', 'view', `在 Threads 查看原文：${articleLabel}`, '在 Threads 查看原文');
   viewBtn.href = sanitizeUrl(article.postLink || '#');
   viewBtn.target = '_blank';
   viewBtn.rel = 'noopener noreferrer';
-  viewBtn.setAttribute('aria-label', `查看原文：${articleLabel}`);
-  viewBtn.append(cloneCardIcon('view'), '查看原文');
   actions.appendChild(viewBtn);
   if (article.embedCode) {
-    const copyEmbedBtn = document.createElement('button');
-    copyEmbedBtn.className = 'card-action-btn copy-btn';
+    const copyEmbedBtn = createCardIconButton('button', 'copy-btn', 'copy', `複製內嵌碼：${articleLabel}`, '複製內嵌碼');
     copyEmbedBtn.dataset.action = 'copy-embed';
-    copyEmbedBtn.setAttribute('aria-label', `複製內嵌代碼：${articleLabel}`);
     const copyLabel = document.createElement('span');
     copyLabel.className = 'copy-label';
-    copyLabel.append(cloneCardIcon('copy'), '複製內嵌代碼');
+    copyLabel.appendChild(copyEmbedBtn.firstElementChild);
     const copyFeedback = document.createElement('span');
     copyFeedback.className = 'copy-feedback';
     copyFeedback.setAttribute('aria-hidden', 'true');
-    const copyFeedbackContent = document.createElement('span');
-    copyFeedbackContent.append(cloneCardIcon('check'), '已複製');
-    copyFeedback.appendChild(copyFeedbackContent);
+    copyFeedback.appendChild(cloneCardIcon('check'));
     copyEmbedBtn.append(copyLabel, copyFeedback);
     actions.appendChild(copyEmbedBtn);
   }
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'card-action-btn danger';
+  const deleteBtn = createCardIconButton('button', 'btn-danger', 'delete', `刪除：${articleLabel}`, '刪除');
   deleteBtn.dataset.action = 'delete';
-  deleteBtn.setAttribute('aria-label', `刪除：${articleLabel}`);
-  deleteBtn.append(cloneCardIcon('delete'), '刪除');
   actions.appendChild(deleteBtn);
-  wrapper.appendChild(actions);
+  foot.appendChild(actions);
+  wrapper.appendChild(foot);
   card.appendChild(wrapper);
   return card;
 }
 function handleArticleListClick(e) {
   const actionEl = e.target.closest('[data-action]');
-  if (!actionEl || !e.currentTarget.contains(actionEl)) return;
+  if (!actionEl || !e.currentTarget.contains(actionEl)) {
+    openPreviewFromRowClick(e);
+    return;
+  }
   const card = actionEl.closest('.article-card');
   const articleId = card ? card.dataset.id : '';
   switch (actionEl.dataset.action) {
@@ -861,15 +860,9 @@ function handleArticleListClick(e) {
       actionEl.dataset.expanded = String(isExpanded);
       break;
     }
-    case 'filter-tag': {
-      const tag = actionEl.dataset.tag;
-      currentFilter = 'tag';
-      currentFilterValue = tag;
-      document.getElementById('filterSelect').value = 'tag';
-      updateFilterValueOptions();
-      applyFilters({ announceResults: true });
+    case 'filter-tag':
+      toggleFilter('tag', actionEl.dataset.tag);
       break;
-    }
     case 'preview':
       openPreviewModal(articleId);
       break;
@@ -884,6 +877,13 @@ function handleArticleListClick(e) {
       deleteArticle(articleId);
       break;
   }
+}
+function openPreviewFromRowClick(e) {
+  const card = e.target.closest('.article-card');
+  if (!card || e.target.closest('a, button, input, label')) return;
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed && card.contains(selection.anchorNode)) return;
+  openPreviewModal(card.dataset.id);
 }
 function handleLoadMoreClick(e) {
   if (!e.target.closest('[data-action="load-more"]')) return;
@@ -922,16 +922,21 @@ function updateSelectionUI() {
   if (hasSelection) {
     selInfo.textContent = `已選取 ${selectedArticleIds.size} 篇`;
   }
-  selInfo.classList.toggle('is-hidden', !hasSelection);
-  batchActions.querySelectorAll('button').forEach(btn => {
-    btn.disabled = !hasSelection;
-  });
-  if (selectAll && filteredArticles.length > 0) {
-    const allChecked = filteredArticles.every(a => selectedArticleIds.has(a.id));
-    const someChecked = filteredArticles.some(a => selectedArticleIds.has(a.id));
-    selectAll.checked = allChecked;
-    selectAll.indeterminate = someChecked && !allChecked;
-  }
+  batchActions.classList.toggle('is-hidden', !hasSelection);
+  document.getElementById('listHeaderMain').classList.toggle('is-hidden', hasSelection);
+  const hasArticles = filteredArticles.length > 0;
+  const allChecked = hasArticles && filteredArticles.every(a => selectedArticleIds.has(a.id));
+  const someChecked = filteredArticles.some(a => selectedArticleIds.has(a.id));
+  selectAll.disabled = !hasArticles;
+  selectAll.checked = allChecked;
+  selectAll.indeterminate = someChecked && !allChecked;
+}
+function clearSelection() {
+  selectedArticleIds.clear();
+  syncRenderedSelection();
+  updateSelectionUI();
+  announceSelection();
+  document.getElementById('selectAllCheckbox').focus();
 }
 function toggleSelectAll(checked) {
   if (checked) {
@@ -955,6 +960,7 @@ async function copyTextToClipboard(text, successMessage, button) {
     await navigator.clipboard.writeText(text);
     showCopyFeedback(button);
     announce(successMessage);
+    void playSound('copy');
   } catch (err) {
     console.error('複製失敗:', err);
     showToast('複製失敗，瀏覽器權限受限', { type: 'error' });
@@ -1028,6 +1034,7 @@ function showToast(message, options = {}) {
   toast.className = isError ? 'toast toast-error' : 'toast';
   appendStreamedText(toast, String(message));
   container.appendChild(toast);
+  if (isError) void playSound('error');
   const duration = options.duration || getToastDuration(message, isError);
   startToastTimer(toast, duration, () => fadeOutToast(toast));
 }
@@ -1070,6 +1077,7 @@ async function restoreArticles(deletedArticles, message) {
   calculateStatistics();
   focusRestoredArticle(deletedArticles[0].id);
   showToast(message);
+  void playSound('undo');
 }
 function createProgressToast(initialMessage) {
   const container = document.getElementById('toastContainer');
@@ -1139,8 +1147,10 @@ async function deleteArticle(articleId) {
   allArticles = allArticles.filter(a => a.id !== articleId);
   await removeArticleRecords(deleted);
   selectedArticleIds.delete(articleId);
+  if (currentPreviewArticle && currentPreviewArticle.id === articleId) closePreviewModal();
   applyFilters({ keepRendered: true });
   calculateStatistics();
+  void playSound('delete');
   showUndoToast('已刪除 1 篇貼文', () => restoreArticles(deleted, '已復原貼文'));
 }
 async function batchDeleteArticles() {
@@ -1156,10 +1166,12 @@ async function batchDeleteArticles() {
   const deleted = allArticles.filter(a => selectedArticleIds.has(a.id));
   allArticles = allArticles.filter(a => !selectedArticleIds.has(a.id));
   await removeArticleRecords(deleted);
+  if (currentPreviewArticle && deleted.some(a => a.id === currentPreviewArticle.id)) closePreviewModal();
   selectedArticleIds.clear();
   applyFilters({ keepRendered: true });
   calculateStatistics();
   if (isFocusLost()) focusArticleCardAt(firstDeletedIndex);
+  void playSound('delete');
   showUndoToast(`已批次刪除 ${count} 篇貼文`, () => restoreArticles(deleted, `已復原 ${count} 篇貼文`));
 }
 async function clearAllArticles() {
@@ -1178,8 +1190,10 @@ async function clearAllArticles() {
   filteredArticles = [];
   selectedArticleIds.clear();
   await removeArticleRecords(snapshot);
+  if (currentPreviewArticle) closePreviewModal();
   applyFilters();
   calculateStatistics();
+  void playSound('delete');
   showUndoToast(`已清除 ${snapshot.length} 篇貼文`, () => restoreArticles(snapshot, '已復原全部貼文'));
 }
 async function updateAllTimestamps() {
@@ -1220,17 +1234,11 @@ async function updateAllTimestamps() {
   cancelUpdateRequested = false;
   if (updateBtn) updateBtn.classList.add('is-hidden');
   if (updateControlsContainer) updateControlsContainer.classList.remove('is-hidden');
-  if (pauseUpdateBtn) {
-    pauseUpdateBtn.textContent = '暫停';
-    pauseUpdateBtn.classList.remove('btn-warning');
-    pauseUpdateBtn.classList.add('btn-primary');
-    pauseUpdateBtn.disabled = false;
-  }
-  if (cancelUpdateBtn) cancelUpdateBtn.disabled = false;
-  if (updateStatusBadge) {
-    updateStatusBadge.textContent = '執行中';
-    updateStatusBadge.classList.remove('paused');
-  }
+  pauseUpdateBtn.textContent = '暫停';
+  pauseUpdateBtn.disabled = false;
+  cancelUpdateBtn.disabled = false;
+  delete updateControlsContainer.dataset.paused;
+  updateStatusBadge.textContent = '執行中';
   if (updateProgressText) updateProgressText.textContent = `更新中 (0/${articlesNeedingUpdate.length})`;
   if (updateProgressFill) updateProgressFill.style.width = '0%';
   if (updatingStatItem) updatingStatItem.classList.remove('is-hidden');
@@ -1369,8 +1377,8 @@ async function updateAllTimestamps() {
     if (updatingStatItem) updatingStatItem.classList.add('is-hidden');
     selectedArticleIds.clear();
     calculateStatistics();
-    updateFilterValueOptions();
     applyFilters({ keepRendered: true });
+    if (!persistFailed && !wasCancelled) void playSound('complete');
     if (currentIndex < articlesNeedingUpdate.length && wasCancelled) {
       const msg = `更新已中途停止！已處理: ${currentIndex}/${articlesNeedingUpdate.length} (成功: ${successCount}, 失敗/失效: ${failCount})`;
       if (activeProgressToast) {
@@ -1696,6 +1704,7 @@ async function exportAllEmbedCodes() {
   downloadFile(jsContent, `threads-embed-codes-${new Date().toISOString().split('T')[0]}.js`, 'text/javascript');
   const isSelected = selectedArticleIds.size > 0;
   showToast(`已匯出 ${isSelected ? '已選取的 ' : ''}${articlesWithEmbed.length} 個內嵌程式碼`);
+  void playSound('complete');
 }
 async function exportFeaturedData() {
   const targetArticles = getExportTargetArticles();
@@ -1728,6 +1737,7 @@ async function exportFeaturedData() {
   downloadFile(jsContent, `threads-featured-data-${new Date().toISOString().split('T')[0]}.js`, 'text/javascript');
   const isSelected = selectedArticleIds.size > 0;
   showToast(`已匯出 ${isSelected ? '已選取的 ' : ''}${exportData.length} 筆精選格式資料`);
+  void playSound('complete');
 }
 async function exportFullData() {
   const targetArticles = getExportTargetArticles();
@@ -1763,6 +1773,7 @@ async function exportFullData() {
   downloadFile(jsContent, `threads-full-data-${new Date().toISOString().split('T')[0]}.js`, 'text/javascript');
   const isSelected = selectedArticleIds.size > 0;
   showToast(`已匯出 ${isSelected ? '已選取的 ' : ''}${exportData.length} 筆完整資料`);
+  void playSound('complete');
 }
 function downloadFile(content, fileName, contentType) {
   const blob = new Blob([content], { type: `${contentType};charset=utf-8` });
@@ -1817,9 +1828,10 @@ async function handleImportFile(event) {
     }
     applyFilters();
     calculateStatistics();
+    void playSound('complete');
   } catch (err) {
     console.error('[Dashboard] 匯入失敗:', err);
-    showToast('匯入失敗：' + (err.message || '檔案格式錯誤'));
+    showToast('匯入失敗：' + (err.message || '檔案格式錯誤'), { type: 'error' });
   }
 }
 function parseJsEmbedFile(content) {
@@ -1899,51 +1911,30 @@ function isAllowedEmbedOrigin(origin) {
   }
 }
 function setupPreviewModalListeners() {
-  document.getElementById('previewRetryBtn')?.addEventListener('click', retryPreviewEmbed);
-  const previewModal = document.getElementById('previewModal');
-  const previewCloseBtn = document.getElementById('previewCloseBtn');
-  const previewPrevBtn = document.getElementById('previewPrevBtn');
-  const previewNextBtn = document.getElementById('previewNextBtn');
+  document.getElementById('previewRetryBtn').addEventListener('click', retryPreviewEmbed);
+  document.getElementById('previewCloseBtn').addEventListener('click', closePreviewModal);
+  document.getElementById('previewPrevBtn').addEventListener('click', () => navigatePreview(-1));
+  document.getElementById('previewNextBtn').addEventListener('click', () => navigatePreview(1));
+  document.getElementById('inspectorScrim').addEventListener('click', closePreviewModal);
   const previewCopyEmbedBtn = document.getElementById('previewCopyEmbedBtn');
-  if (previewCloseBtn) {
-    previewCloseBtn.addEventListener('click', closePreviewModal);
-  }
-  if (previewPrevBtn) {
-    previewPrevBtn.addEventListener('click', () => navigatePreview(-1));
-  }
-  if (previewNextBtn) {
-    previewNextBtn.addEventListener('click', () => navigatePreview(1));
-  }
-  if (previewCopyEmbedBtn) {
-    previewCopyEmbedBtn.addEventListener('click', () => {
-      if (!currentPreviewArticle) return;
-      let blockquoteOnly = currentPreviewArticle.embedCode || buildThreadsEmbedCode(currentPreviewArticle.postLink);
-      let previous;
-      do {
-        previous = blockquoteOnly;
-        blockquoteOnly = blockquoteOnly.replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, '');
-      } while (blockquoteOnly !== previous);
-      blockquoteOnly = blockquoteOnly.trim();
-      if (blockquoteOnly) {
-        copyTextToClipboard(blockquoteOnly, '內嵌代碼已複製', previewCopyEmbedBtn);
-      } else {
-        showToast('無內嵌代碼可複製');
-      }
-    });
-  }
-  document.querySelectorAll('.preview-tab').forEach(tabBtn => {
-    tabBtn.addEventListener('click', () => {
-      const tabName = tabBtn.dataset.tab;
-      switchPreviewTab(tabName);
-    });
+  previewCopyEmbedBtn.addEventListener('click', () => {
+    if (!currentPreviewArticle) return;
+    let blockquoteOnly = currentPreviewArticle.embedCode || buildThreadsEmbedCode(currentPreviewArticle.postLink);
+    let previous;
+    do {
+      previous = blockquoteOnly;
+      blockquoteOnly = blockquoteOnly.replace(/<script\b[^>]*>[\s\S]*?<\/script\b[^>]*>/gi, '');
+    } while (blockquoteOnly !== previous);
+    blockquoteOnly = blockquoteOnly.trim();
+    if (blockquoteOnly) {
+      copyTextToClipboard(blockquoteOnly, '內嵌代碼已複製', previewCopyEmbedBtn);
+    } else {
+      showToast('無內嵌代碼可複製');
+    }
   });
-  if (previewModal) {
-    previewModal.addEventListener('click', (e) => {
-      if (e.target === previewModal) {
-        closePreviewModal();
-      }
-    });
-  }
+  document.querySelectorAll('.preview-tab').forEach(tabBtn => {
+    tabBtn.addEventListener('click', () => switchPreviewTab(tabBtn.dataset.tab));
+  });
   window.addEventListener('message', (event) => {
     if (!isAllowedEmbedOrigin(event.origin)) return;
     try {
@@ -1957,7 +1948,7 @@ function setupPreviewModalListeners() {
       if (data && data.type === 'THREADS_EMBED_ERROR') {
         if (iframe && event.source === iframe.contentWindow) {
           clearTimeout(previewLoadTimer);
-          setPreviewState('error', 'Threads 不提供這篇貼文的內嵌卡片，可能是貼文已刪除、不公開，或只開放登入的使用者觀看（例如被列為敏感內容）。若是後者，在這個瀏覽器登入 Threads 後重新載入即可預覽；內嵌碼放到網站上時，未登入 Threads 或封鎖第三方 Cookie 的訪客也會看到錯誤。也可以切換到上方「原始碼與中繼資料」分頁查看已儲存的內容，或按下方「在 Threads 開啟原文」。');
+          setPreviewState('error', 'Threads 不提供這篇貼文的內嵌卡片，可能是貼文已刪除、不公開，或只開放登入的使用者觀看（例如被列為敏感內容）。若是後者，在這個瀏覽器登入 Threads 後重新載入即可預覽；內嵌碼放到網站上時，未登入 Threads 或封鎖第三方 Cookie 的訪客也會看到錯誤。也可以切換到「原始碼與中繼資料」查看已儲存的內容，或按下方「在 Threads 開啟」。');
         }
         return;
       }
@@ -1988,16 +1979,29 @@ function setupPreviewModalListeners() {
       }
     } catch (e) { }
   });
-  document.addEventListener('keydown', (e) => {
-    if (!previewModal || !previewModal.classList.contains('active')) return;
-    const tag = (e.target && e.target.tagName) || '';
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if (e.key === 'ArrowLeft') {
-      navigatePreview(-1);
-    } else if (e.key === 'ArrowRight') {
-      navigatePreview(1);
-    }
+  document.addEventListener('keydown', handleInspectorKeydown);
+}
+function handleInspectorKeydown(e) {
+  if (!isInspectorShowing() || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  if (activeModal && activeModal.id !== 'inspector') return;
+  const target = e.target;
+  if (target.getAttribute('role') === 'tab' || target.isContentEditable) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    navigatePreview(e.key === 'ArrowLeft' ? -1 : 1);
+  }
+}
+function isInspectorShowing() {
+  return document.getElementById('inspector').classList.contains('active');
+}
+function markCurrentRow() {
+  document.querySelectorAll('#articlesContainer .article-card.is-current').forEach(card => {
+    card.classList.remove('is-current');
   });
+  if (!currentPreviewArticle || !isInspectorShowing()) return null;
+  const card = document.querySelector(`#articlesContainer .article-card[data-id="${CSS.escape(currentPreviewArticle.id)}"]`);
+  if (card) card.classList.add('is-current');
+  return card;
 }
 function openPreviewModal(articleId) {
   const index = filteredArticles.findIndex(a => a.id === articleId);
@@ -2010,22 +2014,28 @@ function openPreviewModal(articleId) {
     currentPreviewIndex = index;
     currentPreviewArticle = filteredArticles[index];
   }
-  const modal = document.getElementById('previewModal');
-  if (!modal) return;
-  activateModal('previewModal', {
+  document.getElementById('inspectorScrim').classList.add('active');
+  activateModal('inspector', {
     initialFocusId: 'previewCloseBtn',
     onDismiss: closePreviewModal
   });
   renderPreviewModalContent();
+  markCurrentRow();
 }
 function closePreviewModal() {
-  deactivateModal('previewModal');
-  const iframe = document.getElementById('previewIframe');
-  if (iframe) {
-    iframe.src = 'about:blank';
-  }
+  if (!isInspectorShowing()) return;
+  const closingId = currentPreviewArticle ? currentPreviewArticle.id : null;
+  document.getElementById('inspectorScrim').classList.remove('active');
+  deactivateModal('inspector');
+  clearTimeout(previewLoadTimer);
+  document.getElementById('previewIframe').src = 'about:blank';
   currentPreviewArticle = null;
   currentPreviewIndex = -1;
+  markCurrentRow();
+  const card = closingId
+    ? document.querySelector(`#articlesContainer .article-card[data-id="${CSS.escape(closingId)}"] .author-btn`)
+    : null;
+  if (card) card.focus();
 }
 function navigatePreview(direction) {
   if (filteredArticles.length === 0) return;
@@ -2036,6 +2046,8 @@ function navigatePreview(direction) {
   currentPreviewIndex = nextIndex;
   currentPreviewArticle = filteredArticles[currentPreviewIndex];
   renderPreviewModalContent();
+  const card = markCurrentRow();
+  if (card) card.scrollIntoView({ block: 'nearest' });
 }
 function switchPreviewTab(tabName) {
   currentPreviewTab = tabName;
@@ -2051,33 +2063,36 @@ function switchPreviewTab(tabName) {
   const activePane = tabName === 'embed'
     ? document.getElementById('paneEmbed')
     : document.getElementById('paneRaw');
-  if (activePane) {
-    activePane.classList.add('active');
-    activePane.hidden = false;
-  }
+  activePane.classList.add('active');
+  activePane.hidden = false;
   renderPreviewModalContent();
+}
+function renderPreviewTimes(article) {
+  const times = document.getElementById('previewPostTime');
+  const postTimeStr = article.timestampTitle || (article.timestamp ? formatTime(article.timestamp) : '未知');
+  const savedTimeStr = article.savedAt ? formatTime(article.savedAt) : '未知';
+  times.replaceChildren();
+  [['發文', postTimeStr, article.timestamp], ['儲存', savedTimeStr, article.savedAt]].forEach(([term, value, isoString]) => {
+    const dt = document.createElement('dt');
+    dt.textContent = term;
+    const dd = document.createElement('dd');
+    dd.textContent = value;
+    dd.title = formatFullTime(isoString) || value;
+    times.append(dt, dd);
+  });
 }
 function renderPreviewModalContent() {
   if (!currentPreviewArticle) return;
   const article = currentPreviewArticle;
   const totalCount = filteredArticles.length || 1;
   const displayIndex = currentPreviewIndex >= 0 ? currentPreviewIndex + 1 : 1;
-  const authorTitle = document.getElementById('previewAuthorTitle');
-  if (authorTitle) authorTitle.textContent = article.author ? `${article.author}` : '未填寫作者';
-  const counter = document.getElementById('previewIndexCounter');
-  if (counter) counter.textContent = `第 ${displayIndex} / ${totalCount} 篇`;
-  const prevBtn = document.getElementById('previewPrevBtn');
-  if (prevBtn) prevBtn.disabled = currentPreviewIndex <= 0;
-  const nextBtn = document.getElementById('previewNextBtn');
-  if (nextBtn) nextBtn.disabled = currentPreviewIndex >= totalCount - 1;
-  const openLink = document.getElementById('previewOpenThreadsLink');
-  if (openLink) openLink.href = sanitizeUrl(article.postLink || '#');
-  const postTime = document.getElementById('previewPostTime');
-  if (postTime) {
-    const postTimeStr = article.timestampTitle || (article.timestamp ? formatTime(article.timestamp) : '未知');
-    const savedTimeStr = article.savedAt ? formatTime(article.savedAt) : '未知';
-    postTime.textContent = `發布：${postTimeStr} ｜ 儲存：${savedTimeStr}`;
-  }
+  const authorName = article.author || '未填寫作者';
+  document.getElementById('previewAuthorTitle').textContent = authorName;
+  document.getElementById('previewIndexCounter').textContent = `第 ${displayIndex} / ${totalCount} 篇`;
+  document.getElementById('previewPrevBtn').disabled = currentPreviewIndex <= 0;
+  document.getElementById('previewNextBtn').disabled = currentPreviewIndex >= totalCount - 1;
+  document.getElementById('previewOpenThreadsLink').href = sanitizeUrl(article.postLink || '#');
+  renderPreviewTimes(article);
   if (currentPreviewTab === 'embed') {
     renderEmbedPane(article);
   } else if (currentPreviewTab === 'raw') {
@@ -2141,20 +2156,27 @@ function renderRawPane(article) {
   const container = document.getElementById('previewRawView');
   if (!container) return;
   container.innerHTML = '';
-  const embedCard = document.createElement('div');
+  const textCard = document.createElement('section');
+  textCard.className = 'preview-raw-card';
+  textCard.innerHTML = `
+    <h3>內文</h3>
+    <p class="preview-raw-text">${escapeHtml(article.content || '無內文')}</p>
+  `;
+  container.appendChild(textCard);
+  const embedCard = document.createElement('section');
   embedCard.className = 'preview-raw-card';
   embedCard.innerHTML = `
-    <h3 id="previewRawEmbedTitle">Threads 內嵌 HTML 代碼 (Embed Code)</h3>
+    <h3 id="previewRawEmbedTitle">內嵌程式碼</h3>
     <div class="preview-raw-content" role="group" aria-labelledby="previewRawEmbedTitle" tabindex="0"><code>${escapeHtml(article.embedCode || buildThreadsEmbedCode(article.postLink))}</code></div>
   `;
   container.appendChild(embedCard);
-  const metaCard = document.createElement('div');
+  const metaCard = document.createElement('section');
   metaCard.className = 'preview-raw-card';
-  const tagsStr = (article.tags || []).map(t => escapeHtml(t)).join(', ') || '無';
+  const tagsStr = (article.tags || []).map(t => escapeHtml(t)).join('、') || '無';
   const safePostLink = sanitizeUrl(article.postLink || '#');
   const postTimeStr = article.timestampTitle || article.timestamp || 'N/A';
   metaCard.innerHTML = `
-    <h3>貼文中繼資料 (Post Metadata)</h3>
+    <h3>中繼資料</h3>
     <table class="preview-meta-table">
       <tbody>
         <tr><th scope="row">貼文識別碼 (ID)</th><td><code>${escapeHtml(article.id || 'N/A')}</code></td></tr>

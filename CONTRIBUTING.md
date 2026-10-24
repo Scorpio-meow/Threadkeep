@@ -40,7 +40,7 @@
 
 ## 開發環境
 
-不需要安裝 Node.js、套件或任何建置工具，只要一個支援 Manifest V3 的 Chromium 瀏覽器（Chrome、Edge、Brave 等，版本 88 以上）。
+不需要安裝 Node.js、套件或任何建置工具，只要一個支援 Manifest V3 的 Chromium 瀏覽器（Chrome、Edge 123 以上，或 Brave 等；`manifest.json` 設了 `minimum_chrome_version`）。
 
 1. Fork 並複製專案：
    ```bash
@@ -55,8 +55,9 @@
 | :--- | :--- |
 | `manifest.json` | 在擴充功能頁按「重新載入」 |
 | `content.js`、`styles.css` | 在擴充功能頁按「重新載入」，**再重新整理 Threads 分頁**，否則舊的腳本仍在執行 |
+| `sound.js`、`sounds/` | 在擴充功能頁按「重新載入」、重新整理 Threads 分頁，並重新開啟 Popup 與控制面板（三處都會載入 `sound.js`） |
 | `article-store.js` | 在擴充功能頁按「重新載入」、重新整理 Threads 分頁，並重新開啟 Popup 與控制面板（三處都會載入它） |
-| `theme.js` | 重新開啟 Popup，並重新整理控制面板分頁 |
+| `theme.js`、`ui.css`、`ui.js` | 重新開啟 Popup，並重新整理控制面板分頁 |
 | `popup.*` | 關閉後重新開啟 Popup |
 | `dashboard.*` | 重新整理控制面板分頁 |
 
@@ -67,13 +68,14 @@
 完整說明見 README 的[開發注意事項與架構規範](./README.md#開發注意事項與架構規範)，重點如下：
 
 - **零外部依賴**：不引入 npm 執行期套件、外部 CDN 腳本或框架。
-- **嚴格 CSP**：HTML 與注入腳本禁止行內樣式（`style="..."`）與行內事件（`onclick="..."`），事件一律用 `addEventListener` 綁定。
+- **嚴格 CSP**：HTML 禁止 `style` 屬性（`style="..."`）與行內事件（`onclick="..."`），事件一律用 `addEventListener` 綁定；需要由程式決定的數值（瀑布流跨列數、游標光斑位置、淡入順序等）由 JS 設定 CSS 變數或單一屬性。
 - **不使用原生對話框**：`confirm()`、`alert()`、`prompt()` 一律改用頁內 Modal。Popup 失焦時原生對話框會連同 Popup 一起關閉並回傳預設值，容易誤觸破壞性操作。
 - **安全渲染**：貼文內文、作者、標籤等來自網頁的字串一律以 `textContent` 或 `escapeHtml` 輸出，連結與 iframe 來源經過 `sanitizeUrl`；`postMessage` 必須驗證來源網域。
 - **無障礙**：新 Modal 需有 `role="dialog"`、`aria-modal="true"`、焦點鎖定與焦點還原；可點擊元素用 `button`，點擊區域至少 24×24px（現有勾選框尚未達到，見 ACCESSIBILITY.md 的已知限制）；停用狀態用 `disabled` 屬性，不要只靠 `pointer-events: none`。
 - **螢幕閱讀器與焦點**：卡片上重複出現的控制項（勾選框、刪除等），`aria-label` 要用 `getArticleLabel` 帶上是哪一篇；重畫清單或卡片時，用 `captureCardFocus`／`restoreCardFocus` 保留焦點，不要讓焦點掉回 `body`；搜尋、篩選這類只改變畫面的結果，用 `announce()` 寫進 `#liveStatus`。對話框內會出現的元件不要用 `transition: all`：遮罩切換 `visibility` 時，子元素若也轉場 `visibility`，開啟後的第一個畫面仍是隱藏狀態，初始聚焦會失敗。
-- **顏色與焦點樣式**：新增顏色時，在樣式表 `:root` 定義 CSS 變數，並在 `@media (prefers-color-scheme: dark)` 與 `:root[data-theme="dark"]` 兩個區塊都補上深色值（只補前者時，在「外觀」選單手動選「深色」不會生效），文字對比兩種模式都至少 4.5:1；只靠背景色區分的狀態（例如選取、目前的分頁），要在 `@media (forced-colors: active)` 區塊用系統顏色補上邊框。按鈕、連結與勾選框的焦點一律用 `outline: 2px solid var(--focus-color)` 加上 `outline-offset`；搜尋框、下拉選單與文字區這類輸入框不加 `outline`，改用 `box-shadow: var(--field-focus-ring)` 的雙環（內圈 2px 實色、對比至少 3:1），並在 `forced-colors` 區塊補上 `outline`，因為高對比模式會移除陰影。兩種都要確認沒有被 `overflow` 裁切。
-- **分層與字重**：區塊與元件不畫邊框，靠 `--bg`、`--surface`、`--fill` 這幾階相差 1%–3% 明度的底色分層，不用純黑 `#000`（陰影也用 `rgb(28 28 26 / …)` 或 `rgb(11 11 10 / …)`）。需要在高對比模式下現形的元件保留 `border: 1px solid transparent`。字重一律寫 `var(--fw-regular)` 到 `var(--fw-heavy)`，深色模式會自動減 40；介面字型用可變字型（Manrope、Noto Sans TC、Fira Code），減 40 後才不會被吸附回整百字重。
+- **顏色與焦點樣式**：顏色一律定義在 `ui.css` 的 `:root`，用 `light-dark(淺色值, 深色值)` 同時給出兩種模式（`data-theme` 會改 `color-scheme`，所以手動選淺色或深色也會生效），文字對比兩種模式都至少 4.5:1。角色分工：墨黑 `--primary` 給主要按鈕、勾選框、開關與按下的分類；香檳金 `--accent` 給選中的卡片、焦點、分頁底線、進度條與重點數字；`--danger` 只給刪除、清除與失效。只靠背景色區分的狀態（例如選取、目前的分頁），要在 `@media (forced-colors: active)` 區塊用系統顏色補上外框。按鈕、連結、勾選框與輸入框的焦點一律是 `outline: 2px solid var(--focus)`（輸入框 `outline-offset: 0`），要確認沒有被 `overflow` 裁切。
+- **版面與字型**：先用 `ui.css` 現成的元件（`.btn` 各變體、`.field`、`.select`、`.check`、`.switch`、`.menu`、`.modal-*`、`.toast`、`.tag-chip`、`.badge`）。底色分 `--paper`、`--sheet`、`--raised`、`--wash` 幾階，線條用 0.5px 的 `--hairline`，圓角只用 6px（按鈕、欄位）與 10px（卡片、浮層），陰影只給浮層與滑過的卡片。字級只用 12、14、16、20px（`--fs-meta`、`--fs-ui`、`--fs-read`、`--fs-title`）；字重寫 `var(--fw-regular)` 到 `var(--fw-semibold)`，深色模式會自動減 40。內文字型是 Geist 與 Noto Sans TC，程式碼 Geist Mono，標題與數字用 `--font-display`（Playfair Display、Noto Serif TC），數字請加 `.num` 取得等高等寬數字。新的動態效果要在 `prefers-reduced-motion: reduce` 下關閉。
+- **聲音**：新增音效時把 Ogg Opus 檔放進 `sounds/`、登記到 `sound.js` 的 `SOUND_EFFECT_FILES`，只在真的成功或失敗時呼叫 `playSound`（使用者取消不播）；要在 Threads 頁面播放還得加進 `manifest.json` 的 `web_accessible_resources`。音效只能補充，畫面與 `#liveStatus` 仍要傳達同樣的結果。音源必須有明確的 CC0 或相容授權。
 - **權限最小化**：新增 `permissions` 或 `host_permissions` 前請先在 Issue 說明理由。
 
 修改 `content.js` 的清洗函式（`cleanExtractedPostContent`、`isLikelyThreadsFallbackDescription`）時另外注意：
@@ -87,13 +89,14 @@
 本專案目前沒有自動化測試，送出 PR 前請依改動範圍手動驗證：
 
 - **擷取**：在動態牆、貼文頁與個人檔案頁各點一次「取得內嵌程式碼」，確認出現儲存提示，內文保留換行且不含 UI 雜訊；`/post/` 與 `/t/` 兩種網址都要能存。
-- **Popup**：搜尋、6 種篩選、6 種排序、單篇刪除與復原、複製內嵌碼、匯入（選檔與貼上）、三種匯出。
-- **控制面板**：統計與標籤雲、作者雲篩選、批次勾選與半選狀態、批次刪除與復原、即時預覽（鍵盤 `ESC` 與左右方向鍵、載入逾時與重新載入，以及 Threads 不提供內嵌的貼文會顯示中文錯誤提示而不是 Meta 的錯誤頁）。
-- **更新貼文資料**：暫停、繼續、取消；勾選與未勾選時的更新範圍；失效貼文的標記與恢復；更新後匯出完整備份，只開放登入者觀看的貼文應有 `"embeddable": false`，一般貼文為 `true`。
+- **Popup**：搜尋、6 種篩選、6 種排序、單篇刪除與復原、複製內嵌碼、「更多」選單的匯入（選檔與貼上）與三種匯出，以及「取消選取」後焦點回到「全選」。
+- **控制面板**：分類格與篇數、標籤雲與作者雲篩選（含「全部 N 個…」展開）、瀑布流在不同視窗寬度與「展開全文」後沒有重疊、批次勾選與半選狀態、批次列的刪除與復原、匯出選單的範圍標題、預覽抽屜（點作者名稱與卡片空白處開啟、`ESC`／點背景／關閉鈕關閉後焦點回到卡片、左右方向鍵、載入逾時與重新載入，以及 Threads 不提供內嵌的貼文會顯示中文錯誤提示而不是 Meta 的錯誤頁）。
+- **更新貼文資料**：暫停、繼續、停止；勾選與未勾選時的更新範圍；失效貼文的標記與恢復；更新後匯出完整備份，只開放登入者觀看的貼文應有 `"embeddable": false`，一般貼文為 `true`。
 - **匯入匯出**：合併與完全覆寫（含二次確認），匯出的檔案能再次匯入。
-- **鍵盤與動態**：只用鍵盤完成上述操作，並在系統開啟「減少動態效果」時確認轉場動畫停用。點標籤徽章、刪除、按「復原」之後，焦點要留在附近的控制項，不會跳回頁首。
-- **外觀模式**：在控制面板的「外觀」選單分別選跟隨系統、淺色、深色，並切換作業系統的淺色／深色設定，確認 Popup、控制面板與 Threads 頁面的通知都跟著改變；在 Windows 開啟高對比模式，確認焦點外框、勾選框與選取狀態看得到。
-- **提示**：滑鼠移到提示上時倒數暫停；用鍵盤把焦點移到「復原」按鈕時，提示不會消失。按「複製內嵌程式碼」後，按鈕原地顯示「已複製」，2.5 秒後淡回原本的文字。
+- **鍵盤與動態**：只用鍵盤完成上述操作，並在系統開啟「減少動態效果」時確認轉場、卡片淡入、背景流動與游標光斑都停用。點分類或標籤、刪除、按「復原」之後，焦點要留在附近的控制項，不會跳回頁首。
+- **外觀模式**：在控制面板右上角「設定」的「外觀」分別選跟隨系統、淺色、深色，並切換作業系統的淺色／深色設定，確認 Popup、控制面板與 Threads 頁面的通知都跟著改變；在 Windows 開啟高對比模式，確認焦點外框、勾選框與選取狀態看得到。
+- **提示**：滑鼠移到提示上時倒數暫停；用鍵盤把焦點移到「復原」按鈕時，提示不會消失。複製內嵌碼後，按鈕原地換成打勾（文字按鈕顯示「已複製」），2.5 秒後淡回。
+- **聲音**：在 Threads 儲存一篇、複製、刪除、復原、匯入或匯出、批次更新完成與出錯時各聽到對應的音效，取消操作時沒有聲音；在「設定」關掉音效後三處都不再出聲。開啟背景音樂後會淡入，切到別的分頁會停止，回來再淡入。
 
 ## 文件同步
 

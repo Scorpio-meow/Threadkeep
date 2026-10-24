@@ -788,9 +788,9 @@ async function saveArticle(articleData, button) {
   } catch (error) {
     console.error('[Threadkeep] 儲存失敗:', error);
     if (error.message && (error.message.includes('QUOTA') || error.message.includes('quota'))) {
-      showNotification('儲存空間已滿!請開啟擴充功能清理舊貼文', { type: 'error' });
+      showNotification('儲存空間已滿，請開啟擴充功能清理舊貼文', { type: 'error' });
     } else if (error.message && error.message.includes('Extension context invalidated')) {
-      showNotification('擴充功能已失效,請重新載入頁面', { type: 'error' });
+      showNotification('擴充功能已失效，請重新載入頁面', { type: 'error' });
     } else {
       showNotification('儲存失敗: ' + (error.message || '請稍後再試'), { type: 'error' });
     }
@@ -830,6 +830,7 @@ function showNotification(message, options = {}) {
   }
   appendStreamedNotificationText(notification, message);
   document.body.appendChild(notification);
+  if (isExtensionAlive()) void playSound(isError ? 'error' : 'save');
   const baseDuration = isError ? NOTIFICATION_ERROR_DURATION_MS : NOTIFICATION_DURATION_MS;
   let remaining = options.duration || Math.max(baseDuration, message.length * NOTIFICATION_MS_PER_CHAR);
   let startedAt = 0;

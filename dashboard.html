@@ -3,205 +3,338 @@
 
 <head>
   <meta charset="UTF-8">
+  <meta name="color-scheme" content="light dark">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Threadkeep - 控制面板</title>
+  <link rel="stylesheet" href="ui.css">
   <link rel="stylesheet" href="dashboard.css">
   <script src="theme.js"></script>
 </head>
 
 <body>
-  <header class="navbar">
-    <div class="nav-left">
-      <div class="logo">
-        <svg aria-label="Threads" height="24" role="img" viewBox="0 0 192 192" width="24"
-          xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-          <path
-            d="M141.537 88.9883C140.71 88.5919 139.87 88.2104 139.019 87.8451C137.537 60.5382 122.616 44.905 97.5619 44.745C97.4484 44.7443 97.3355 44.7443 97.222 44.7443C82.2364 44.7443 69.7731 51.1409 62.102 62.7807L75.881 72.2328C81.6116 63.5383 90.6052 61.6848 97.2286 61.6848C97.3051 61.6848 97.3819 61.6848 97.4576 61.6855C105.707 61.7381 111.932 64.1366 115.961 68.814C118.893 72.2193 120.854 76.925 121.825 82.8638C114.511 81.6207 106.601 81.2385 98.145 81.7233C74.3247 83.0954 59.0111 96.9879 60.0396 116.292C60.5615 126.084 65.4397 134.508 73.775 140.011C80.8224 144.663 89.899 146.938 99.3323 146.423C111.79 145.74 121.563 140.987 128.381 132.296C133.559 125.696 136.834 117.143 138.28 106.366C144.217 109.949 148.617 114.664 151.047 120.332C155.179 129.967 155.42 145.8 142.501 158.708C131.182 170.016 117.576 174.908 97.0135 175.059C74.2042 174.89 56.9538 167.575 45.7381 153.317C35.2355 139.966 29.8077 120.682 29.6052 96C29.8077 71.3178 35.2355 52.0336 45.7381 38.6827C56.9538 24.4249 74.2039 17.11 97.0132 16.9405C119.988 17.1113 137.539 24.4614 149.184 38.788C154.894 45.8136 159.199 54.6488 162.037 64.9503L178.184 60.6422C174.744 47.9622 169.331 37.0357 161.965 27.974C147.036 9.60668 125.202 0.195148 97.0695 0H96.9569C68.8816 0.19447 47.2921 9.6418 32.7883 28.0793C19.8819 44.4864 13.2244 67.3157 13.0007 95.9325L13 96L13.0007 96.0675C13.2244 124.684 19.8819 147.514 32.7883 163.921C47.2921 182.358 68.8816 191.806 96.9569 192H97.0695C122.03 191.827 139.624 185.292 154.118 170.811C173.081 151.866 172.51 128.119 166.26 113.541C161.776 103.087 153.227 94.5962 141.537 88.9883ZM98.4405 129.507C88.0005 130.095 77.1544 125.409 76.6196 115.372C76.2232 107.93 81.9158 99.626 99.0812 98.6368C101.047 98.5234 102.976 98.468 104.871 98.468C111.106 98.468 116.939 99.0737 122.242 100.233C120.264 124.935 108.662 128.946 98.4405 129.507Z" />
-        </svg>
-      </div>
-      <h1 class="nav-title">Threadkeep <span class="badge">控制面板</span></h1>
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-mark" src="icons/icon-48.png" alt="" width="28" height="28">
+      <h1 class="brand-name display">Threadkeep<span class="sr-only">控制面板</span></h1>
     </div>
-    <div class="nav-right">
-      <div class="global-stats">
-        <span class="stat-item">已儲存：<strong id="totalSavedCount">0</strong> 篇</span>
-        <span class="stat-item">失效連結：<strong id="totalExpiredCount" class="danger-text">0</strong> 篇</span>
-        <span class="stat-item is-hidden" id="updatingStatItem">更新中：<strong id="updatingProgressCount"
-            class="warning-text">0/0</strong></span>
-      </div>
-      <label class="theme-picker" for="themeSelect">
-        <span class="theme-picker-label">外觀</span>
-        <select id="themeSelect" class="theme-select">
-          <option value="system">跟隨系統</option>
-          <option value="light">淺色</option>
-          <option value="dark">深色</option>
-        </select>
-      </label>
-      <a href="https://www.threads.com/" target="_blank" rel="noopener noreferrer" class="threads-link">
+    <div class="search topbar-search">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <line x1="20" y1="20" x2="16.2" y2="16.2" />
+      </svg>
+      <label class="sr-only" for="searchInput">搜尋內文、作者、標籤或貼文連結</label>
+      <input type="search" id="searchInput" class="field" placeholder="搜尋內文、作者、標籤或連結" autocomplete="off">
+    </div>
+    <div class="topbar-actions">
+      <span class="topbar-progress is-hidden" id="updatingStatItem">更新中 <strong id="updatingProgressCount"
+          class="num">0/0</strong></span>
+      <a href="https://www.threads.com/" target="_blank" rel="noopener noreferrer" class="btn btn-ghost">
         前往 Threads
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="7" y1="17" x2="17" y2="7" />
           <polyline points="7 7 17 7 17 17" />
         </svg>
       </a>
+      <button class="btn btn-icon" type="button" popovertarget="settingsMenu" aria-label="設定">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="7" x2="20" y2="7" />
+          <line x1="4" y1="17" x2="20" y2="17" />
+          <circle cx="9" cy="7" r="2.4" fill="var(--paper)" />
+          <circle cx="15" cy="17" r="2.4" fill="var(--paper)" />
+        </svg>
+      </button>
+    </div>
+    <div class="menu settings-menu" popover id="settingsMenu" aria-label="設定">
+      <label class="menu-row" for="themeSelect">
+        <span>外觀</span>
+        <span class="select">
+          <select id="themeSelect" class="field">
+            <option value="system">跟隨系統</option>
+            <option value="light">淺色</option>
+            <option value="dark">深色</option>
+          </select>
+        </span>
+      </label>
+      <div class="menu-sep"></div>
+      <label class="menu-row" for="soundEffectsSwitch">
+        <span>音效</span>
+        <input type="checkbox" class="switch" role="switch" id="soundEffectsSwitch">
+      </label>
+      <label class="menu-row" for="backgroundMusicSwitch">
+        <span>背景音樂</span>
+        <input type="checkbox" class="switch" role="switch" id="backgroundMusicSwitch">
+      </label>
     </div>
   </header>
-  <div class="dashboard-container">
-    <aside class="sidebar">
-      <div class="sidebar-section">
-        <h2 class="sidebar-title">全文搜尋</h2>
-        <div class="search-wrapper">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <label class="sr-only" for="searchInput">搜尋內文、作者、標籤或貼文連結</label>
-          <input type="text" id="searchInput" placeholder="搜尋內文、作者、標籤或貼文連結...">
+  <div class="workspace">
+    <nav class="sidebar scroll-area" aria-label="貼文分類與資料">
+      <section class="welcome" aria-labelledby="welcomeTitle">
+        <img class="welcome-mascot float-mascot" src="images/mascot-320.webp" alt="" width="320" height="334">
+        <div class="welcome-text">
+          <p class="welcome-title" id="welcomeTitle"></p>
+          <p class="welcome-meta"><span>收藏 <strong class="num" id="welcomeTotal">0</strong> 篇</span><span>本週新增
+              <strong class="num" id="welcomeWeek">0</strong> 篇</span></p>
         </div>
+      </section>
+      <div class="view-switch" id="viewNav" role="group" aria-label="貼文分類">
+        <button class="view-btn" type="button" data-filter="all" data-title="全部貼文" aria-pressed="true">
+          <span class="nav-label">全部</span>
+          <span class="view-count num" id="countAll">0</span>
+        </button>
+        <button class="view-btn" type="button" data-filter="expired" data-title="失效貼文" aria-pressed="false">
+          <span class="nav-label">失效</span>
+          <span class="view-count num" id="countExpired">0</span>
+        </button>
+        <button class="view-btn" type="button" data-filter="noContent" data-title="無內文" aria-pressed="false">
+          <span class="nav-label">無內文</span>
+          <span class="view-count num" id="countNoContent">0</span>
+        </button>
+        <button class="view-btn" type="button" data-filter="noTimestamp" data-title="無發文時間" aria-pressed="false">
+          <span class="nav-label">無發文時間</span>
+          <span class="view-count num" id="countNoTimestamp">0</span>
+        </button>
       </div>
-      <div class="sidebar-section">
-        <h2 class="sidebar-title">整理與篩選</h2>
-        <div class="control-group">
-          <label for="sortSelect">排序依據</label>
-          <select id="sortSelect" class="form-select">
-            <option value="savedAt-desc">儲存時間 (新到舊)</option>
-            <option value="savedAt-asc">儲存時間 (舊到新)</option>
-            <option value="timestamp-desc">發文時間 (新到舊)</option>
-            <option value="timestamp-asc">發文時間 (舊到新)</option>
-            <option value="author-asc">作者 (A-Z)</option>
-            <option value="author-desc">作者 (Z-A)</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <label for="filterSelect">篩選類型</label>
-          <select id="filterSelect" class="form-select">
-            <option value="all">全部貼文</option>
-            <option value="author">按作者</option>
-            <option value="tag">按標籤</option>
-            <option value="noContent">無內文</option>
-            <option value="noTimestamp">無發文時間</option>
-            <option value="expired">失效貼文</option>
-          </select>
-        </div>
-        <div class="control-collapse" id="filterValueContainer" data-open="false">
-          <div class="control-collapse-inner">
-            <div class="control-group">
-              <label for="filterValueSelect">篩選數值</label>
-              <select id="filterValueSelect" class="form-select">
-                <option value="">全部</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="sidebar-section">
-        <h2 class="sidebar-title">快速統計</h2>
-        <div class="stats-panel">
-          <div class="mini-stat-card">
-            <span class="label">作者總數</span>
-            <span class="val" id="uniqueAuthorsCount">0</span>
-          </div>
-          <div class="mini-stat-card">
-            <span class="label">標籤總數</span>
-            <span class="val" id="uniqueTagsCount">0</span>
-          </div>
-        </div>
-        <div class="tags-cloud-wrapper">
-          <div class="small-title" id="tagsCloudTitle">常用標籤</div>
-          <div class="tags-cloud" id="tagsCloud" role="group" aria-labelledby="tagsCloudTitle">
-          </div>
-        </div>
-        <div class="authors-cloud-wrapper">
-          <div class="small-title" id="authorsCloudTitle">作者貼文統計</div>
-          <div class="authors-cloud" id="authorsCloud" role="group" aria-labelledby="authorsCloudTitle">
-          </div>
-        </div>
-      </div>
-      <div class="sidebar-section">
-        <h2 class="sidebar-title">備份與維護</h2>
-        <div class="actions-grid">
-          <button class="btn btn-primary" id="exportBtn" aria-describedby="exportBtnHint">
-            匯出 JS 嵌入代碼<span class="btn-hint" id="exportBtnHint" aria-hidden="true">僅嵌入碼，適合直接貼進網頁</span>
+      <section class="nav-section" aria-labelledby="tagsCloudTitle">
+        <h2 class="nav-heading" id="tagsCloudTitle">標籤<span class="nav-heading-count num" id="uniqueTagsCount">0</span>
+        </h2>
+        <div class="cloud" id="tagsCloud" role="group" aria-labelledby="tagsCloudTitle"></div>
+      </section>
+      <section class="nav-section" aria-labelledby="authorsCloudTitle">
+        <h2 class="nav-heading" id="authorsCloudTitle">作者<span class="nav-heading-count num"
+            id="uniqueAuthorsCount">0</span></h2>
+        <div class="cloud" id="authorsCloud" role="group" aria-labelledby="authorsCloudTitle"></div>
+      </section>
+      <section class="nav-section nav-data" aria-labelledby="dataSectionTitle">
+        <h2 class="nav-heading" id="dataSectionTitle">資料</h2>
+        <div class="data-actions">
+          <button class="data-btn" type="button" popovertarget="exportMenu">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true">
+              <path d="M12 4v11" />
+              <polyline points="7 10 12 15 17 10" />
+              <path d="M5 19h14" />
+            </svg>
+            匯出
           </button>
-          <button class="btn btn-primary" id="exportFeaturedBtn" aria-describedby="exportFeaturedBtnHint">
-            匯出精選資料<span class="btn-hint" id="exportFeaturedBtnHint" aria-hidden="true">config.js 精選貼文格式</span>
+          <button class="data-btn" type="button" id="importBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true">
+              <path d="M12 15V4" />
+              <polyline points="7 9 12 4 17 9" />
+              <path d="M5 19h14" />
+            </svg>
+            匯入
           </button>
-          <button class="btn btn-primary" id="exportFullBtn" aria-describedby="exportFullBtnHint">
-            匯出完整資料<span class="btn-hint" id="exportFullBtnHint" aria-hidden="true">含時間、作者、內文的完整備份</span>
+          <button class="data-btn" type="button" id="updateTimestampsBtn" aria-describedby="updateTimestampsHint">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true">
+              <path d="M20 11a8 8 0 0 0-14.6-4.5L4 8" />
+              <polyline points="4 3 4 8 9 8" />
+              <path d="M4 13a8 8 0 0 0 14.6 4.5L20 16" />
+              <polyline points="20 21 20 16 15 16" />
+            </svg>
+            更新資料
           </button>
-          <button class="btn id-btn" id="importBtn">匯入資料檔案</button>
+          <button class="data-btn data-btn-danger" type="button" id="clearBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true">
+              <polyline points="4 7 20 7" />
+              <path d="M18 7v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7" />
+              <path d="M9 7V4h6v3" />
+            </svg>
+            清除全部
+          </button>
         </div>
-        <div class="maintenance-actions">
-          <button class="btn btn-warning" id="updateTimestampsBtn" title="開啟暫時分頁，向 Threads 擷取最新發文時間與內容">更新貼文資料</button>
-          <div class="update-controls is-hidden" id="updateControlsContainer">
-            <div class="update-progress-info">
-              <span class="update-progress-text" id="updateProgressText">更新中 (0/0)</span>
-              <span class="update-badge" id="updateStatusBadge">執行中</span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill" id="updateProgressFill"></div>
-            </div>
-            <div class="update-btn-group">
-              <button class="btn btn-small btn-primary" id="pauseUpdateBtn" title="暫停/繼續更新">暫停</button>
-              <button class="btn btn-small btn-danger" id="cancelUpdateBtn" title="停止更新">取消</button>
-            </div>
+        <span class="sr-only" id="updateTimestampsHint">開啟暫時分頁，向 Threads 擷取最新發文時間與內文</span>
+        <div class="update-controls is-hidden" id="updateControlsContainer">
+          <div class="update-progress-info">
+            <span class="update-progress-text num" id="updateProgressText">更新中 (0/0)</span>
+            <span class="badge badge-amber" id="updateStatusBadge">執行中</span>
           </div>
-          <div class="danger-zone">
-            <span class="danger-zone-label">危險操作</span>
-            <button class="btn btn-danger" id="clearBtn">清除全部資料</button>
+          <div class="progress-track">
+            <div class="progress-fill" id="updateProgressFill"></div>
+          </div>
+          <div class="update-btn-group">
+            <button class="btn btn-sm" type="button" id="pauseUpdateBtn">暫停</button>
+            <button class="btn btn-sm btn-danger" type="button" id="cancelUpdateBtn">停止</button>
           </div>
         </div>
+      </section>
+      <div class="menu" popover id="exportMenu" data-align="start">
+        <p class="menu-label num" id="exportScopeLabel">匯出目前列表</p>
+        <button class="menu-item" type="button" id="exportBtn">
+          <span class="menu-item-text"><span>僅內嵌碼</span><span class="menu-item-hint">貼進網頁用的 .js 檔</span></span>
+        </button>
+        <button class="menu-item" type="button" id="exportFeaturedBtn">
+          <span class="menu-item-text"><span>精選格式</span><span class="menu-item-hint">Threadfolio 精選貼文用</span></span>
+        </button>
+        <button class="menu-item" type="button" id="exportFullBtn">
+          <span class="menu-item-text"><span>完整備份</span><span class="menu-item-hint">含時間、作者與內文</span></span>
+        </button>
       </div>
-    </aside>
-    <main class="main-content">
-      <div class="batch-bar">
-        <div class="batch-left">
-          <label class="checkbox-container">
-            <input type="checkbox" id="selectAllCheckbox">
-            <span class="checkmark"></span>
-            <span class="label-text">全選</span>
-          </label>
-          <span id="selectionInfo" class="selection-info-text is-hidden">已選取 0 篇</span>
+    </nav>
+    <main class="list-pane" id="articlesScroll">
+      <div class="list-header">
+        <input type="checkbox" class="check" id="selectAllCheckbox" aria-label="全選目前列表的貼文">
+        <div class="list-header-main" id="listHeaderMain">
+          <h2 class="list-title" id="articleListHeading" tabindex="-1">全部貼文</h2>
+          <span class="list-count num" id="resultCount"></span>
+          <span class="select list-sort">
+            <label class="sr-only" for="sortSelect">排序</label>
+            <select id="sortSelect" class="field">
+              <option value="savedAt-desc">儲存時間（新到舊）</option>
+              <option value="savedAt-asc">儲存時間（舊到新）</option>
+              <option value="timestamp-desc">發文時間（新到舊）</option>
+              <option value="timestamp-asc">發文時間（舊到新）</option>
+              <option value="author-asc">作者（A-Z）</option>
+              <option value="author-desc">作者（Z-A）</option>
+            </select>
+          </span>
         </div>
-        <div class="batch-right" id="batchActionsContainer">
-          <button class="btn btn-small btn-warning" id="batchUpdateBtn" disabled>更新貼文資料</button>
-          <button class="btn btn-small copy-btn" id="batchCopyEmbedBtn" disabled>
-            <span class="copy-label">批次複製 Embed</span>
+        <div class="batch-bar is-hidden" id="batchActionsContainer" role="group" aria-label="批次操作">
+          <span class="batch-count num" id="selectionInfo">已選取 0 篇</span>
+          <button class="btn btn-sm" type="button" id="batchUpdateBtn">更新資料</button>
+          <button class="btn btn-sm copy-btn" type="button" id="batchCopyEmbedBtn">
+            <span class="copy-label">複製內嵌碼</span>
             <span class="copy-feedback" aria-hidden="true"><span><svg xmlns="http://www.w3.org/2000/svg" width="12"
                   height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                   stroke-linecap="round" stroke-linejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>已複製</span></span>
           </button>
-          <button class="btn btn-small btn-danger" id="batchDeleteBtn" disabled>批次刪除</button>
+          <button class="btn btn-sm btn-danger" type="button" id="batchDeleteBtn">刪除</button>
+          <button class="btn btn-sm btn-ghost" type="button" id="clearSelectionBtn">取消選取</button>
         </div>
       </div>
-      <h2 class="sr-only" id="articleListHeading" tabindex="-1">貼文列表</h2>
-      <div class="grid-container" id="articlesContainer">
-        <div class="empty-state">
-          <img class="empty-mascot" src="images/mascot-320.webp" alt="" width="320" height="334">
-          <p class="empty-title">尚未儲存任何貼文</p>
-          <p class="empty-description">在 Threads 貼文選單點「取得內嵌程式碼」，就會自動存到這裡。</p>
+      <div class="post-list scroll-area" id="articlesList">
+        <div class="post-rows" id="articlesContainer">
+          <div class="empty-state">
+            <img class="empty-mascot" src="images/mascot-320.webp" alt="" width="320" height="334">
+            <p class="empty-title">尚未儲存任何貼文</p>
+            <p class="empty-description">在 Threads 貼文選單點「取得內嵌程式碼」，就會自動存到這裡。</p>
+          </div>
         </div>
+        <div class="load-more-container" id="loadMoreContainer"></div>
       </div>
-      <div class="load-more-container" id="loadMoreContainer"></div>
     </main>
+    <div class="inspector-scrim" id="inspectorScrim"></div>
+    <div class="inspector" id="inspector" role="dialog" aria-modal="true" aria-labelledby="previewAuthorTitle">
+      <div class="inspector-content" id="inspectorContent">
+        <div class="inspector-header">
+          <div class="inspector-heading">
+            <h2 id="previewAuthorTitle">@author</h2>
+            <span class="inspector-counter num" id="previewIndexCounter">第 1 / 1 篇</span>
+          </div>
+          <div class="inspector-nav">
+            <button class="btn btn-icon" type="button" id="previewPrevBtn" title="上一篇（←）" aria-label="上一篇貼文">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <button class="btn btn-icon" type="button" id="previewNextBtn" title="下一篇（→）" aria-label="下一篇貼文">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+            <button class="btn btn-icon" type="button" id="previewCloseBtn" title="關閉（Esc）" aria-label="關閉預覽">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <line x1="6" y1="6" x2="18" y2="18" />
+                <line x1="18" y1="6" x2="6" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="preview-tabs" role="tablist" aria-label="預覽模式">
+          <button class="preview-tab active" type="button" data-tab="embed" role="tab" aria-selected="true"
+            aria-controls="paneEmbed" id="previewTabEmbed">內嵌預覽</button>
+          <button class="preview-tab" type="button" data-tab="raw" role="tab" aria-selected="false"
+            aria-controls="paneRaw" id="previewTabRaw">原始碼與中繼資料</button>
+        </div>
+        <div class="inspector-body scroll-area">
+          <div class="preview-pane active" id="paneEmbed" role="tabpanel" aria-labelledby="previewTabEmbed"
+            tabindex="0">
+            <div class="preview-iframe-wrapper" id="previewIframeWrapper">
+              <div class="preview-loading" id="previewLoadingSpinner">
+                <img class="loading-mascot float-mascot" src="images/mascot-320.webp" alt="" width="320" height="334">
+                <span>正在載入 Threads 內嵌卡片</span>
+              </div>
+              <div class="preview-error-state is-hidden" id="previewErrorState" role="alert">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                  aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <p class="preview-error-message" id="previewErrorMessage"></p>
+                <button class="btn btn-sm" type="button" id="previewRetryBtn">重新載入</button>
+              </div>
+              <iframe id="previewIframe" class="preview-iframe" src="about:blank" scrolling="no"
+                title="Threads 貼文即時預覽"></iframe>
+            </div>
+          </div>
+          <div class="preview-pane" id="paneRaw" role="tabpanel" aria-labelledby="previewTabRaw" tabindex="0" hidden>
+            <div class="preview-raw-view" id="previewRawView"></div>
+          </div>
+        </div>
+        <div class="inspector-footer">
+          <dl class="inspector-times" id="previewPostTime"></dl>
+          <div class="inspector-actions">
+            <button class="btn copy-btn" type="button" id="previewCopyEmbedBtn">
+              <span class="copy-label">複製內嵌碼</span>
+              <span class="copy-feedback" aria-hidden="true"><span><svg xmlns="http://www.w3.org/2000/svg" width="14"
+                    height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>已複製</span></span>
+            </button>
+            <a class="btn btn-primary" id="previewOpenThreadsLink" target="_blank" rel="noopener noreferrer">
+              在 Threads 開啟
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <line x1="7" y1="17" x2="17" y2="7" />
+                <polyline points="7 7 17 7 17 17" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="modal-overlay" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
     aria-describedby="modalMessage">
     <div class="modal-container">
       <div class="modal-header">
         <h2 id="modalTitle">確認操作</h2>
-        <button class="modal-close-btn" id="modalCloseBtn" aria-label="關閉對話框">&times;</button>
+        <button class="modal-close-btn" type="button" id="modalCloseBtn" aria-label="關閉對話框">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
       </div>
       <div class="modal-body">
-        <p id="modalMessage">您確定要執行此操作嗎？此動作將無法還原。</p>
+        <p id="modalMessage"></p>
       </div>
       <div class="modal-footer">
-        <button class="btn" id="modalCancelBtn">取消</button>
-        <button class="btn btn-danger" id="modalConfirmBtn">確定</button>
+        <button class="btn" type="button" id="modalCancelBtn">取消</button>
+        <button class="btn btn-danger-solid" type="button" id="modalConfirmBtn">確定</button>
       </div>
     </div>
   </div>
@@ -209,117 +342,33 @@
     aria-describedby="importModalMessage">
     <div class="modal-container">
       <div class="modal-header">
-        <h2 id="importModalTitle">匯入資料選項</h2>
-        <button class="modal-close-btn" id="importModalCloseBtn" aria-label="關閉對話框">&times;</button>
+        <h2 id="importModalTitle">選擇匯入方式</h2>
+        <button class="modal-close-btn" type="button" id="importModalCloseBtn" aria-label="關閉對話框">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
       </div>
       <div class="modal-body">
-        <p id="importModalMessage">偵測到已準備匯入的貼文資料。請選擇匯入模式：</p>
-        <div class="import-mode-options">
-          <button type="button" class="import-option" id="importModeMerge" aria-labelledby="importModeMergeTitle"
+        <p id="importModalMessage"></p>
+        <div class="choice-list">
+          <button type="button" class="choice-option" id="importModeMerge" aria-labelledby="importModeMergeTitle"
             aria-describedby="importModeMergeDesc">
-            <span class="import-option-title" id="importModeMergeTitle">合併資料<span class="sr-only">（</span><span
-                class="import-option-tag">推薦</span><span class="sr-only">）</span></span>
-            <span class="import-option-desc" id="importModeMergeDesc">與現有資料進行比對，僅加入不存在的貼文，不會覆蓋現有內容。</span>
+            <span class="choice-title" id="importModeMergeTitle">合併資料<span class="sr-only">（</span><span
+                class="choice-tag">推薦</span><span class="sr-only">）</span></span>
+            <span class="choice-desc" id="importModeMergeDesc">只加入尚未存在的貼文，現有資料完全保留。</span>
           </button>
-          <button type="button" class="import-option import-option-danger" id="importModeOverwrite"
+          <button type="button" class="choice-option choice-option-danger" id="importModeOverwrite"
             aria-labelledby="importModeOverwriteTitle" aria-describedby="importModeOverwriteDesc">
-            <span class="import-option-title" id="importModeOverwriteTitle">完全覆寫</span>
-            <span class="import-option-desc" id="importModeOverwriteDesc">清除所有現有儲存的貼文，以匯入的檔案內容完全取代。此動作無法復原。</span>
+            <span class="choice-title" id="importModeOverwriteTitle">完全覆寫</span>
+            <span class="choice-desc" id="importModeOverwriteDesc">刪除目前全部貼文，改以匯入的內容取代。此動作無法復原。</span>
           </button>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" id="importModalCancelBtn">取消匯入</button>
-      </div>
-    </div>
-  </div>
-  <div class="modal-overlay preview-modal-overlay" id="previewModal" role="dialog" aria-modal="true"
-    aria-labelledby="previewAuthorTitle">
-    <div class="modal-container preview-modal-container">
-      <div class="preview-modal-header">
-        <div class="preview-header-left">
-          <div class="preview-badge">即時預覽</div>
-          <h2 id="previewAuthorTitle">@author</h2>
-          <span class="preview-counter" id="previewIndexCounter">第 1 / 1 篇</span>
-        </div>
-        <div class="preview-header-nav">
-          <button class="preview-nav-btn" id="previewPrevBtn" title="上一篇 (鍵盤 ←)" aria-label="上一篇貼文">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <button class="preview-nav-btn" id="previewNextBtn" title="下一篇 (鍵盤 →)" aria-label="下一篇貼文">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-          <button class="modal-close-btn preview-close-btn" id="previewCloseBtn" title="關閉 (ESC)"
-            aria-label="關閉預覽">&times;</button>
-        </div>
-      </div>
-      <div class="preview-toolbar">
-        <div class="preview-tabs" role="tablist" aria-label="預覽模式">
-          <button class="preview-tab active" data-tab="embed" role="tab" aria-selected="true" aria-controls="paneEmbed"
-            id="previewTabEmbed">原生內嵌預覽</button>
-          <button class="preview-tab" data-tab="raw" role="tab" aria-selected="false" aria-controls="paneRaw"
-            id="previewTabRaw">原始碼與中繼資料</button>
-        </div>
-      </div>
-      <div class="preview-modal-body">
-        <div class="preview-pane active" id="paneEmbed" role="tabpanel" aria-labelledby="previewTabEmbed" tabindex="0">
-          <div class="preview-iframe-wrapper" id="previewIframeWrapper">
-            <div class="preview-loading-spinner" id="previewLoadingSpinner">
-              <div class="spinner"></div>
-              <span>正在載入 Threads 原生內嵌元件...</span>
-            </div>
-            <div class="preview-error-state is-hidden" id="previewErrorState" role="alert">
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
-                aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
-              </svg>
-              <p class="preview-error-message" id="previewErrorMessage"></p>
-              <button class="btn btn-small btn-primary" id="previewRetryBtn" type="button">重新載入</button>
-            </div>
-            <iframe id="previewIframe" class="preview-iframe" src="about:blank" scrolling="no"
-              title="Threads 貼文即時預覽框架"></iframe>
-          </div>
-        </div>
-        <div class="preview-pane" id="paneRaw" role="tabpanel" aria-labelledby="previewTabRaw" tabindex="0" hidden>
-          <div class="preview-raw-view" id="previewRawView"></div>
-        </div>
-      </div>
-      <div class="preview-modal-footer">
-        <div class="preview-footer-left">
-          <span class="preview-post-time" id="previewPostTime"></span>
-        </div>
-        <div class="preview-footer-actions">
-          <button class="preview-action-btn secondary copy-btn" id="previewCopyEmbedBtn">
-            <span class="copy-label"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="16 18 22 12 16 6" />
-                <polyline points="8 6 2 12 8 18" />
-              </svg>複製內嵌代碼</span>
-            <span class="copy-feedback" aria-hidden="true"><span><svg xmlns="http://www.w3.org/2000/svg" width="14"
-                  height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>已複製</span></span>
-          </button>
-          <a class="preview-action-btn primary" id="previewOpenThreadsLink" target="_blank" rel="noopener noreferrer">
-            <span>在 Threads 開啟原文</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
-        </div>
+        <button class="btn" type="button" id="importModalCancelBtn">取消匯入</button>
       </div>
     </div>
   </div>
@@ -327,6 +376,8 @@
   <div class="sr-only" id="liveStatus" role="status" aria-live="polite" aria-atomic="true"></div>
   <input type="file" id="importFileInput" accept=".js,.json" class="is-hidden" title="匯入資料檔案">
   <script src="article-store.js"></script>
+  <script src="ui.js"></script>
+  <script src="sound.js"></script>
   <script src="dashboard.js"></script>
 </body>
 

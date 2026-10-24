@@ -219,7 +219,8 @@
             <div class="stage__bar">
               <h3 class="stage__title">擴充功能擷取並清洗</h3>
               <div class="stage__ui" data-ui aria-hidden="true">
-                <code class="ui-snippet">&lt;blockquote class="text-post-media" data-text-post-permalink="https://www.threads.com/@pinyu.daily/post/DQx7mK2pLsA"&gt;</code>
+                <code
+                  class="ui-snippet">&lt;blockquote class="text-post-media" data-text-post-permalink="https://www.threads.com/@pinyu.daily/post/DQx7mK2pLsA"&gt;</code>
                 <dl class="ui-fields">
                   <div>
                     <dt>作者</dt>
@@ -437,9 +438,9 @@ just now</script>
               hidden>
               <div class="cap__media cap__media--video">
                 <video class="cap__video" data-demo-video poster="assets/video/tag-filter-poster.webp"
-                  data-light-poster="assets/video/tag-filter-poster.webp" data-dark-poster="assets/video/tag-filter-dark-poster.webp"
-                  width="1280" height="800" muted loop playsinline preload="none"
-                  aria-label="控制面板操作示範：在常用標籤點 #台南，貼文從 11 篇篩成 4 篇；再點一次取消篩選，回到 11 篇。">
+                  data-light-poster="assets/video/tag-filter-poster.webp"
+                  data-dark-poster="assets/video/tag-filter-dark-poster.webp" width="1280" height="800" muted loop
+                  playsinline preload="none" aria-label="控制面板操作示範：在常用標籤點 #台南，貼文從 11 篇篩成 4 篇；再點一次取消篩選，回到 11 篇。">
                   <source media="(prefers-color-scheme: dark)" data-dark-source src="assets/video/tag-filter-dark.mp4"
                     type="video/mp4">
                   <source src="assets/video/tag-filter.mp4" type="video/mp4">
@@ -717,8 +718,7 @@ just now</script>
               </svg>
               README 技術文件
             </a>
-            <a class="text-link"
-              href="https://github.com/Scorpio-meow/Threadkeep/blob/main/llms.txt">llms.txt</a>
+            <a class="text-link" href="https://github.com/Scorpio-meow/Threadkeep/blob/main/llms.txt">llms.txt</a>
           </div>
         </header>
         <div class="dev__notes">
@@ -832,8 +832,7 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
             <h3 class="step__title">先下載原始碼</h3>
             <p class="step__text">用 Git 複製專案，或下載 ZIP 後解壓縮。</p>
             <div class="cmd">
-              <code class="cmd__text"
-                id="cmd-clone">git clone https://github.com/Scorpio-meow/Threadkeep.git</code>
+              <code class="cmd__text" id="cmd-clone">git clone https://github.com/Scorpio-meow/Threadkeep.git</code>
               <button class="cmd__copy" type="button" data-copy="cmd-clone" aria-label="複製 git clone 指令">
                 <svg class="icon icon--copy" aria-hidden="true">
                   <use href="assets/icons.svg#i-copy"></use>
@@ -897,7 +896,8 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
           <div class="faq__item" data-reveal>
             <h3 class="faq__q">即時預覽說「Threads 不提供這篇貼文的內嵌卡片」？</h3>
             <p class="faq__a">Threads 對這篇的內嵌頁回了錯誤，可能是貼文已刪除、不公開，或只開放登入的人觀看，例如被列為敏感內容。若是最後一種，在同一個瀏覽器登入
-              threads.com 後按「重新載入」就能預覽；這類貼文的內嵌碼放到網站上時，只有已登入 Threads、且瀏覽器允許第三方 Cookie 的訪客看得到。開發者工具裡關於 <code>Permissions-Policy</code> 的警告來自 Meta
+              threads.com 後按「重新載入」就能預覽；這類貼文的內嵌碼放到網站上時，只有已登入 Threads、且瀏覽器允許第三方 Cookie 的訪客看得到。開發者工具裡關於
+              <code>Permissions-Policy</code> 的警告來自 Meta
               的回應標頭，正常的貼文也會出現，和這個錯誤無關。</p>
           </div>
           <div class="faq__item" data-reveal>
@@ -939,8 +939,8 @@ if (/threads\.com/i.test(value)) score += 100;</code></pre>
           <img class="site-footer__mascot" src="assets/img/mascot-320.webp" width="320" height="334" loading="lazy"
             alt="">
           <p class="site-footer__by">由 <a class="text-link" href="https://github.com/Scorpio-meow">Scorpio-meow</a>
-            開發與維護，以 <a class="text-link"
-              href="https://github.com/Scorpio-meow/Threadkeep/blob/main/LICENSE">MIT 授權</a> 開源。</p>
+            開發與維護，以 <a class="text-link" href="https://github.com/Scorpio-meow/Threadkeep/blob/main/LICENSE">MIT 授權</a>
+            開源。</p>
         </div>
         <nav class="site-footer__nav" aria-label="頁尾連結">
           <div class="site-footer__col">

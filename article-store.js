@@ -2,6 +2,8 @@ const ARTICLE_KEY_PREFIX = 'post:';
 const LEGACY_ARTICLES_KEY = 'savedArticles';
 const ARTICLE_UPDATE_FIELDS = ['timestamp', 'timestampTitle', 'content', 'tags', 'status', 'expiredAt', 'expiredReason', 'expiredCheckedAt', 'timestampUpdatedAt', 'embeddable', 'embeddableCheckedAt'];
 const THEME_PREFERENCE_KEY = 'themePreference';
+const SOUND_EFFECTS_KEY = 'soundEffects';
+const BACKGROUND_MUSIC_KEY = 'backgroundMusic';
 const EMBED_CHECK_TIMEOUT_MS = 10000;
 function getThreadsEmbedPath(postLink) {
   if (!postLink || typeof postLink !== 'string') return '';

@@ -22,8 +22,35 @@ const searchTextCache = new WeakMap();
 const sortCollator = new Intl.Collator('zh-TW');
 const textSegmenter = new Intl.Segmenter('zh-TW', { granularity: 'grapheme' });
 const copyFeedbackTimers = new WeakMap();
-const copyFeedbackTemplate = document.createElement('template');
-copyFeedbackTemplate.innerHTML = '<span class="copy-feedback" aria-hidden="true"><span><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>已複製</span></span>';
+const CARD_ICON_MARKUP = {
+  view: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><line x1="20" y1="4" x2="11" y2="13"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg>',
+  copy: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  delete: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  check: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>'
+};
+const cardIconCache = new Map();
+function cloneCardIcon(name) {
+  let icon = cardIconCache.get(name);
+  if (!icon) {
+    const template = document.createElement('template');
+    template.innerHTML = CARD_ICON_MARKUP[name];
+    icon = template.content.firstElementChild;
+    cardIconCache.set(name, icon);
+  }
+  return icon.cloneNode(true);
+}
+function createCopyFeedback() {
+  const feedback = document.createElement('span');
+  feedback.className = 'copy-feedback';
+  feedback.setAttribute('aria-hidden', 'true');
+  const inner = document.createElement('span');
+  const text = document.createElement('span');
+  text.className = 'copy-feedback-text';
+  text.textContent = '已複製';
+  inner.append(cloneCardIcon('check'), text);
+  feedback.appendChild(inner);
+  return feedback;
+}
 function pruneSelection() {
   const ids = new Set(allArticles.map(a => a.id));
   selectedArticleIds.forEach(id => {
@@ -65,7 +92,13 @@ function isExpiredArticle(article) {
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', async () => {
     void setupThemePreference(null);
+    setupMenus();
+    setupAmbientLight();
+    const articlesContainer = document.getElementById('articlesContainer');
+    articlesContainer.classList.add('is-entering');
     await loadArticles();
+    void Promise.allSettled(articlesContainer.getAnimations({ subtree: true }).map(animation => animation.finished))
+      .then(() => articlesContainer.classList.remove('is-entering'));
     setupEventListeners();
     setupStorageSync();
   });
@@ -154,12 +187,14 @@ function setupEventListeners() {
         sortArticles();
         renderArticles();
         showToast(`已匯入 ${newArticles.length} 筆新資料（跳過 ${imported.length - newArticles.length} 筆重複）`);
+        void playSound('complete');
       } else {
         allArticles = await replaceAllArticleRecords(allArticles, imported);
         filteredArticles = [...allArticles];
         sortArticles();
         renderArticles();
         showToast(`已匯入 ${allArticles.length} 筆資料（取代原有資料）`);
+        void playSound('complete');
       }
     } catch (err) {
       console.error('[Popup] paste import error', err);
@@ -368,8 +403,7 @@ function setArticleListSemantics(container, hasCards) {
 }
 function renderArticles({ keepRendered = false } = {}) {
   const container = document.getElementById('articlesContainer');
-  const countElement = document.getElementById('articleCount');
-  countElement.textContent = `${filteredArticles.length} 篇`;
+  document.getElementById('totalCount').textContent = allArticles.length;
   if (loadMoreObserver) loadMoreObserver.disconnect();
   const focus = captureCardFocus(container);
   document.getElementById('loadMoreContainer').replaceChildren();
@@ -388,15 +422,17 @@ function renderArticles({ keepRendered = false } = {}) {
     mascot.height = 334;
     empty.appendChild(mascot);
     const msg = document.createElement('p');
+    msg.className = 'empty-title';
     msg.textContent = allArticles.length === 0 ? '尚未儲存任何貼文' : '找不到符合的貼文';
     empty.appendChild(msg);
     if (allArticles.length === 0) {
       const help = document.createElement('p');
-      help.className = 'empty-help';
+      help.className = 'empty-description';
       help.textContent = '在 Threads 貼文選單點「取得內嵌程式碼」';
       empty.appendChild(help);
     }
     container.appendChild(empty);
+    updateSelectionUI();
     restoreCardFocus(container, focus);
     return;
   }
@@ -413,6 +449,7 @@ function appendArticleCards(container, count) {
   let firstNewCard = null;
   for (let i = renderedCount; i < end; i++) {
     const card = createArticleCard(filteredArticles[i]);
+    card.style.setProperty('--i', i - renderedCount);
     if (!firstNewCard) firstNewCard = card;
     fragment.appendChild(card);
   }
@@ -453,19 +490,34 @@ function formatFullTime(isoString) {
   if (!isoString || isNaN(date.getTime())) return '';
   return date.toLocaleString('zh-TW', { dateStyle: 'long', timeStyle: 'short' });
 }
-function createTimeLine(label, displayText, isoString) {
-  const line = document.createElement('div');
-  line.className = 'time';
-  line.textContent = `${label}：${displayText}`;
+function describeTime(label, displayText, isoString) {
   const fullTime = formatFullTime(isoString);
-  line.title = fullTime || displayText;
-  if (fullTime && RELATIVE_TIME_PATTERN.test(displayText)) {
-    const srText = document.createElement('span');
-    srText.className = 'sr-only';
-    srText.textContent = `（${fullTime}）`;
-    line.appendChild(srText);
-  }
-  return line;
+  const spoken = fullTime && RELATIVE_TIME_PATTERN.test(displayText) ? `${displayText}（${fullTime}）` : displayText;
+  return { title: `${label}：${fullTime || displayText}`, spoken: `${label}：${spoken}` };
+}
+function createTimeInfo(article) {
+  const time = document.createElement('span');
+  time.className = 'time num';
+  const posted = article.timestamp ? describeTime('發文', article.timestampTitle || formatTime(article.timestamp), article.timestamp) : null;
+  const saved = describeTime('儲存', formatTime(article.savedAt), article.savedAt);
+  const visual = document.createElement('span');
+  visual.setAttribute('aria-hidden', 'true');
+  visual.textContent = article.timestamp ? formatTime(article.timestamp) : `儲存 ${formatTime(article.savedAt)}`;
+  const spoken = document.createElement('span');
+  spoken.className = 'sr-only';
+  spoken.textContent = [posted?.spoken, saved.spoken].filter(Boolean).join('；');
+  time.title = [posted?.title, saved.title].filter(Boolean).join('\n');
+  time.append(visual, spoken);
+  return time;
+}
+function createIconButton(tagName, className, icon, label, title) {
+  const button = document.createElement(tagName);
+  button.className = `btn btn-icon btn-sm ${className}`.trim();
+  if (tagName === 'button') button.type = 'button';
+  button.setAttribute('aria-label', label);
+  button.title = title;
+  if (icon) button.appendChild(cloneCardIcon(icon));
+  return button;
 }
 function createArticleCard(article) {
   const card = document.createElement('div');
@@ -478,81 +530,73 @@ function createArticleCard(article) {
   const articleLabel = getArticleLabel(article);
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
-  checkbox.className = 'article-checkbox';
+  checkbox.className = 'check article-checkbox';
   checkbox.checked = selectedArticleIds.has(article.id);
   checkbox.dataset.articleId = article.id;
   checkbox.setAttribute('aria-label', `選取：${articleLabel}`);
   card.appendChild(checkbox);
+  const main = document.createElement('div');
+  main.className = 'article-main';
   const header = document.createElement('div');
   header.className = 'article-header';
   const authorEl = document.createElement('h3');
   authorEl.className = 'author';
-  authorEl.textContent = article.author || '未填寫作者';
-  const timeInfo = document.createElement('div');
-  timeInfo.className = 'time-info';
-  const timePost = createTimeLine('發文', article.timestampTitle || formatTime(article.timestamp), article.timestamp);
-  const timeSaved = createTimeLine('儲存', formatTime(article.savedAt), article.savedAt);
-  timeInfo.appendChild(timePost);
-  timeInfo.appendChild(timeSaved);
-  header.appendChild(authorEl);
-  header.appendChild(timeInfo);
-  card.appendChild(header);
-  const contentEl = document.createElement('div');
-  contentEl.className = 'article-content';
-  const contentText = (article.content || '').substring(0, 200);
-  contentEl.textContent = contentText + ((article.content || '').length > 200 ? '...' : '');
-  card.appendChild(contentEl);
+  const authorName = article.author || '未填寫作者';
+  const authorText = document.createElement('span');
+  authorText.className = 'author-name';
+  authorText.textContent = authorName;
+  authorEl.appendChild(authorText);
+  header.append(authorEl, createTimeInfo(article));
+  main.appendChild(header);
+  const rawContent = article.content || '';
+  if (rawContent.trim()) {
+    const contentEl = document.createElement('p');
+    contentEl.className = 'article-content';
+    contentEl.textContent = rawContent.substring(0, 200) + (rawContent.length > 200 ? '…' : '');
+    main.appendChild(contentEl);
+  }
+  const footer = document.createElement('div');
+  footer.className = 'article-footer';
+  const meta = document.createElement('div');
+  meta.className = 'article-meta';
   if (isExpiredArticle(article)) {
     const statusBadge = document.createElement('span');
-    statusBadge.className = 'tag';
-    statusBadge.textContent = '失效貼文';
+    statusBadge.className = 'badge badge-danger';
+    statusBadge.textContent = '已失效';
     statusBadge.title = article.expiredReason ? `原因：${article.expiredReason}` : '已歸類為失效貼文';
-    statusBadge.style.background = 'var(--danger-soft)';
-    statusBadge.style.color = 'var(--danger-color)';
-    statusBadge.style.marginTop = '0';
-    card.appendChild(statusBadge);
+    meta.appendChild(statusBadge);
   }
-  if (article.tags && article.tags.length > 0) {
-    const tagsContainer = document.createElement('div');
-    tagsContainer.className = 'tags';
-    article.tags.forEach(tag => {
-      const tagEl = document.createElement('span');
-      tagEl.className = 'tag';
-      tagEl.textContent = '#' + (tag || '');
-      tagsContainer.appendChild(tagEl);
-    });
-    card.appendChild(tagsContainer);
-  }
+  (article.tags || []).forEach(tag => {
+    const tagEl = document.createElement('span');
+    tagEl.className = 'tag-chip';
+    tagEl.textContent = '#' + (tag || '');
+    meta.appendChild(tagEl);
+  });
+  footer.appendChild(meta);
   const actions = document.createElement('div');
   actions.className = 'article-actions';
-  const link = document.createElement('a');
-  link.className = 'action-btn';
+  const link = createIconButton('a', '', 'view', `查看原文：${articleLabel}`, '查看原文');
   link.href = sanitizeUrl(article.postLink || '#');
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  link.textContent = '查看原文';
-  link.setAttribute('aria-label', `查看原文：${articleLabel}`);
   actions.appendChild(link);
   if (article.embedCode) {
-    const copyEmbedBtn = document.createElement('button');
-    copyEmbedBtn.className = 'action-btn copy-btn copy-embed-btn';
-    copyEmbedBtn.setAttribute('data-article-id', article.id);
+    const copyEmbedBtn = createIconButton('button', 'copy-btn copy-embed-btn', null, `複製內嵌程式碼：${articleLabel}`, '複製內嵌碼');
+    copyEmbedBtn.dataset.articleId = article.id;
     copyEmbedBtn.dataset.action = 'copy-embed';
     const copyLabel = document.createElement('span');
     copyLabel.className = 'copy-label';
-    copyLabel.textContent = '複製內嵌程式碼';
-    copyEmbedBtn.append(copyLabel, copyFeedbackTemplate.content.firstElementChild.cloneNode(true));
-    copyEmbedBtn.setAttribute('aria-label', `複製內嵌程式碼：${articleLabel}`);
+    copyLabel.appendChild(cloneCardIcon('copy'));
+    copyEmbedBtn.append(copyLabel, createCopyFeedback());
     actions.appendChild(copyEmbedBtn);
   }
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'action-btn delete-btn delete-article-btn';
-  deleteBtn.setAttribute('data-article-id', article.id);
+  const deleteBtn = createIconButton('button', 'btn-danger delete-article-btn', 'delete', `刪除：${articleLabel}`, '刪除');
+  deleteBtn.dataset.articleId = article.id;
   deleteBtn.dataset.action = 'delete';
-  deleteBtn.textContent = '刪除';
-  deleteBtn.setAttribute('aria-label', `刪除：${articleLabel}`);
   actions.appendChild(deleteBtn);
-  card.appendChild(actions);
+  footer.appendChild(actions);
+  main.appendChild(footer);
+  card.appendChild(main);
   return card;
 }
 function handleArticleListClick(e) {
@@ -600,21 +644,24 @@ function updateSelectionUI() {
   const countElement = document.getElementById('articleCount');
   const selectAllCheckbox = document.getElementById('selectAllCheckbox');
   const selectionInfo = document.getElementById('selectionInfo');
-  if (selectedArticleIds.size > 0) {
-    countElement.textContent = `${filteredArticles.length} 篇 (已選 ${selectedArticleIds.size})`;
-    if (selectionInfo) {
-      selectionInfo.textContent = `已選取 ${selectedArticleIds.size} 篇`;
-      selectionInfo.classList.remove('is-hidden');
-    }
-  } else {
-    countElement.textContent = `${filteredArticles.length} 篇`;
-    if (selectionInfo) {
-      selectionInfo.classList.add('is-hidden');
-    }
+  const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+  const exportMenuLabel = document.getElementById('exportMenuLabel');
+  const hasSelection = selectedArticleIds.size > 0;
+  countElement.textContent = `${filteredArticles.length} 篇`;
+  countElement.classList.toggle('is-hidden', hasSelection);
+  if (selectionInfo) {
+    selectionInfo.textContent = hasSelection ? `已選取 ${selectedArticleIds.size} 篇` : '';
+    selectionInfo.classList.toggle('is-hidden', !hasSelection);
   }
-  if (selectAllCheckbox && filteredArticles.length > 0) {
-    const allSelected = filteredArticles.every(a => selectedArticleIds.has(a.id));
+  if (clearSelectionBtn) clearSelectionBtn.classList.toggle('is-hidden', !hasSelection);
+  if (exportMenuLabel) {
+    exportMenuLabel.textContent = hasSelection ? `匯出已選取的 ${selectedArticleIds.size} 篇` : '匯出';
+  }
+  if (selectAllCheckbox) {
+    const hasResults = filteredArticles.length > 0;
+    const allSelected = hasResults && filteredArticles.every(a => selectedArticleIds.has(a.id));
     const someSelected = filteredArticles.some(a => selectedArticleIds.has(a.id));
+    selectAllCheckbox.disabled = !hasResults;
     selectAllCheckbox.checked = allSelected;
     selectAllCheckbox.indeterminate = someSelected && !allSelected;
   }
@@ -634,6 +681,7 @@ function clearSelection() {
   syncRenderedSelection();
   updateSelectionUI();
   announceSelection();
+  document.getElementById('selectAllCheckbox').focus();
 }
 function formatTime(isoString) {
   if (!isoString) return '未知';
@@ -662,11 +710,13 @@ async function deleteArticle(articleId) {
   filteredArticles = filteredArticles.filter(a => a.id !== articleId);
   selectedArticleIds.delete(articleId);
   renderArticles({ keepRendered: true });
+  void playSound('delete');
   showUndoToast('已刪除 1 篇貼文', async () => {
     await restoreDeletedArticles([article]);
     applyFilters({ keepRendered: true });
     focusRestoredArticle(article.id);
     showToast('已復原');
+    void playSound('undo');
   });
 }
 if (typeof window !== 'undefined') {
@@ -699,6 +749,7 @@ async function copyEmbed(articleId, button) {
     await navigator.clipboard.writeText(article.embedCode);
     showCopyFeedback(button);
     announce('已複製內嵌程式碼');
+    void playSound('copy');
   } catch (err) {
     console.error('[Popup] 複製失敗:', err);
     showToast('複製失敗: ' + err.message, { type: 'error' });
@@ -747,6 +798,7 @@ async function exportAllEmbedCodes() {
   URL.revokeObjectURL(url);
   const isSelected = selectedArticleIds.size > 0;
   showToast(`已匯出 ${isSelected ? '已選取的 ' : ''}${articlesWithEmbed.length} 個內嵌程式碼`);
+  void playSound('complete');
 }
 async function exportFeaturedData() {
   const targetArticles = getExportTargetArticles();
@@ -785,6 +837,7 @@ async function exportFeaturedData() {
   URL.revokeObjectURL(url);
   const isSelected = selectedArticleIds.size > 0;
   showToast(`已匯出 ${isSelected ? '已選取的 ' : ''}${exportData.length} 筆精選格式資料`);
+  void playSound('complete');
 }
 async function exportFullData() {
   const targetArticles = getExportTargetArticles();
@@ -826,6 +879,7 @@ async function exportFullData() {
   URL.revokeObjectURL(url);
   const isSelected = selectedArticleIds.size > 0;
   showToast(`已匯出 ${isSelected ? '已選取的 ' : ''}${exportData.length} 筆完整資料`);
+  void playSound('complete');
 }
 async function handleImportFile(event) {
   const file = event.target.files[0];
@@ -871,6 +925,7 @@ async function handleImportFile(event) {
     }
     filteredArticles = [...allArticles];
     renderArticles();
+    void playSound('complete');
   } catch (err) {
     console.error('[Popup] 匯入失敗:', err);
     showToast('匯入失敗：' + (err.message || '檔案格式錯誤'), { type: 'error' });
@@ -969,11 +1024,13 @@ async function clearAllArticles() {
   filteredArticles = [];
   selectedArticleIds.clear();
   renderArticles();
+  void playSound('delete');
   showUndoToast(`已清除 ${snapshot.length} 篇貼文`, async () => {
     await restoreDeletedArticles(snapshot);
     applyFilters();
     focusRestoredArticle(snapshot[0].id);
     showToast('已復原全部貼文');
+    void playSound('undo');
   });
 }
 function getToastDuration(message, isError) {
@@ -1046,6 +1103,7 @@ function showToast(message, options = {}) {
   container.appendChild(toast);
   const duration = options.duration || getToastDuration(message, isError);
   startToastTimer(toast, duration, () => fadeOutToast(toast));
+  if (isError) void playSound('error');
 }
 function showUndoToast(message, onUndo, duration = UNDO_TOAST_DURATION_MS) {
   const container = document.getElementById('toastContainer');
@@ -1118,7 +1176,9 @@ function handleModalKeydown(e) {
 function openModal(modalId, { initialFocusId, onDismiss } = {}) {
   const modal = document.getElementById(modalId);
   if (!modal) return null;
-  modalReturnFocus = document.activeElement;
+  const active = document.activeElement;
+  const openerMenu = active && active.closest ? active.closest('.menu[popover]') : null;
+  modalReturnFocus = openerMenu ? document.querySelector(`[popovertarget="${CSS.escape(openerMenu.id)}"]`) : active;
   activeModal = modal;
   modalDismiss = onDismiss || null;
   modal.hidden = false;
@@ -1157,7 +1217,7 @@ function showConfirm(title, message, { confirmText = '確定', danger = true } =
     titleEl.textContent = title;
     messageEl.textContent = message;
     confirmBtn.textContent = confirmText;
-    confirmBtn.className = danger ? 'btn btn-clear' : 'btn btn-dashboard';
+    confirmBtn.className = danger ? 'btn btn-danger-solid' : 'btn btn-primary';
     const settle = (result) => {
       confirmBtn.removeEventListener('click', onConfirm);
       cancelBtn.removeEventListener('click', onCancel);
@@ -1238,7 +1298,7 @@ function showImportModeChoice(count) {
     const overwriteBtn = document.getElementById('importModeOverwriteBtn');
     const cancelBtn = document.getElementById('importModeCancelBtn');
     const closeBtn = document.getElementById('importModeCloseBtn');
-    messageEl.textContent = `檔案中找到 ${count} 筆貼文資料。請選擇匯入方式：`;
+    messageEl.textContent = `檔案中有 ${count} 筆貼文資料。`;
     const teardown = () => {
       mergeBtn.removeEventListener('click', onMerge);
       overwriteBtn.removeEventListener('click', onOverwrite);
