@@ -10,7 +10,7 @@
 - Accessibility: In-page modals only (no native confirm/alert/prompt), focus trapping, live regions, 4.5:1 contrast, undersized button hit targets enlarged to at least 24x24px (checkboxes are 16x16px, a known limitation), font sizes limited to 12/14/16/20px, prefers-reduced-motion support (also stops the ambient light, cursor spotlight, and card entrance animations), system or manually chosen light/dark themes, forced-colors (Windows High Contrast) styles, pausable toasts, optional sound that only supplements visible and announced feedback; axe-core 4.10.2 reports no violations on 10 popup/dashboard states in light and dark
 - License: MIT ([LICENSE](./LICENSE))
 - Source Repository: https://github.com/Scorpio-meow/Threadkeep
-- Companion Showcase Site: Threadfolio, https://scorpio-meow.github.io/Threadfolio-Example/ (consumes exported featured post data as its primary dataset; its source repository is not public)
+- Companion Showcase Site: Threadfolio, example repository https://github.com/Scorpio-meow/Threadfolio-Example (consumes exported featured post data as its primary dataset)
 
 ## Core Files
 - [manifest.json](./manifest.json): Extension configuration manifest declaring Manifest V3 specs, permissions (storage, unlimitedStorage, tabs, scripting), host matches for threads.com and threads.net, `all_frames: true` content script injection (`article-store.js`, `sound.js`, then `content.js`), strict CSP headers, `minimum_chrome_version: "123"`, and `web_accessible_resources` that expose only `sounds/save.ogg` and `sounds/error.ogg` to the four Threads hosts.

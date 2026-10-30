@@ -3,6 +3,11 @@
 本專案所有對使用者有影響的變更都記錄在這份文件。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/)。
 
 
+## [Unreleased]
+
+### 改善
+- README、llms.txt 與介紹頁裡的 Threadfolio 連結改指向公開的範例專案 [Threadfolio-Example](https://github.com/Scorpio-meow/Threadfolio-Example)，原本的 Threadfolio 網站連結移除。
+
 ## [2.8.0] - 2026-10-25
 
 ### 新增

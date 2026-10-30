@@ -15,7 +15,7 @@
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
 [![Platform](https://img.shields.io/badge/platform-Chromium-orange?style=for-the-badge&logo=googlechrome&logoColor=white)](#前置條件與環境需求)
 [![Build](https://img.shields.io/badge/build-zero--build--step-informational?style=for-the-badge)](#技術規格與技術棧)
-[![Companion Site](https://img.shields.io/badge/Companion_Site-Threadfolio-8A2BE2?style=for-the-badge&logo=cloudflare&logoColor=white)](https://scorpio-meow.github.io/Threadfolio-Example/)
+[![Example Repo](https://img.shields.io/badge/Example_Repo-Threadfolio--Example-8A2BE2?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Scorpio-meow/Threadfolio-Example)
 
 ---
 
@@ -103,12 +103,12 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 
 ## 生態系與關聯專案
 
-本專案作為「**資料擷取與本機管理中樞**」，與前端展示網站 **[Threadfolio](https://scorpio-meow.github.io/Threadfolio-Example/)** 構成完整的 Threads 內容收藏與公開展示生態系：
+本專案作為「**資料擷取與本機管理中樞**」，與前端展示網站 **[Threadfolio](https://github.com/Scorpio-meow/Threadfolio-Example)** 構成完整的 Threads 內容收藏與公開展示生態系：
 
 | 專案名稱 | 專案定位與職責 | 專案連結 |
 | :--- | :--- | :--- |
 | **Threadkeep** (本專案) | 瀏覽器擴充功能：負責 Threads 貼文智慧擷取、DOM 雜訊清洗、本機儲存、即時預覽與多格式匯出 | [GitHub 專案庫](https://github.com/Scorpio-meow/Threadkeep) |
-| **Threadfolio** (關聯專案) | 前端展示網站：接收本擴充功能匯出的「精選貼文資料 (threads-featured-data-*.js)」，提供響應式卡片流與展示介面 | [Threadfolio 網站](https://scorpio-meow.github.io/Threadfolio-Example/) |
+| **Threadfolio** (關聯專案) | 前端展示網站：接收本擴充功能匯出的「精選貼文資料 (threads-featured-data-*.js)」，提供響應式卡片流與展示介面 | [Threadfolio-Example 範例專案庫](https://github.com/Scorpio-meow/Threadfolio-Example) |
 
 ### 雙專案協同運作流程
 
@@ -121,7 +121,7 @@ flowchart LR
 
 1. 在 Threads 看到想留下的貼文時，從貼文選單點「取得內嵌程式碼」，**Threadkeep** 就會把它存進瀏覽器。
 2. 在控制面板側欄「資料」的「匯出」選單選「**精選格式**」，擴充功能會自動去除作者帳號 `@` 前綴並格式化為前端配置物件。
-3. 將匯出的檔案直接提供給 **[Threadfolio](https://scorpio-meow.github.io/Threadfolio-Example/)** 作為資料來源，即刻完成個人精選貼文網站的更新與展示。
+3. 將匯出的檔案直接提供給 **[Threadfolio](https://github.com/Scorpio-meow/Threadfolio-Example)** 作為資料來源，即刻完成個人精選貼文網站的更新與展示。
 
 ---
 
@@ -815,7 +815,7 @@ interface SavedArticle {
 | 格式名稱 | 匯出檔案名稱規範 | 格式結構 | 適用情境與特點 |
 | :--- | :--- | :--- | :--- |
 | **簡易版嵌入碼 (Embed Only)** | `threads-embed-codes-YYYY-MM-DD.js` | `const posts = ['<blockquote>...</blockquote>', ...];` | 專為靜態網頁快速引用設計，已自動移除重複的 script 標籤並轉義引號。 |
-| **精選貼文資料 (Featured Data)** | `threads-featured-data-YYYY-MM-DD.js` | `const posts = [{ embedCode, postLink, author, content, tags, embeddable?, embeddableCheckedAt? }, ...];` | 專為關聯專案 [Threadfolio](https://scorpio-meow.github.io/Threadfolio-Example/) 設計，author 欄位自動去除 `@` 前綴以利作為 Key 或展示標籤使用。檢查過內嵌可用性的貼文才帶 `embeddable` 與 `embeddableCheckedAt`；網站只在 `embeddable === false` 且 iframe 載入失敗時改顯示「只限登入者觀看」的說明。 |
+| **精選貼文資料 (Featured Data)** | `threads-featured-data-YYYY-MM-DD.js` | `const posts = [{ embedCode, postLink, author, content, tags, embeddable?, embeddableCheckedAt? }, ...];` | 專為關聯專案 [Threadfolio](https://github.com/Scorpio-meow/Threadfolio-Example) 設計，author 欄位自動去除 `@` 前綴以利作為 Key 或展示標籤使用。檢查過內嵌可用性的貼文才帶 `embeddable` 與 `embeddableCheckedAt`；網站只在 `embeddable === false` 且 iframe 載入失敗時改顯示「只限登入者觀看」的說明。 |
 | **完整版備份資料 (Full Data)** | `threads-full-data-YYYY-MM-DD.js` | `const posts = [{ embedCode, postLink, author, content, timestamp, timestampTitle, savedAt, tags, status, ... }, ...];` | 包含內文、時間、標籤、失效狀態與內嵌可用性（檢查過才有）等欄位，適用於跨裝置備份、資料遷移與災難還原。不含 `id`，匯入時會重新產生。 |
 
 ### 匯出檔案範例
