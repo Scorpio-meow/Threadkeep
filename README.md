@@ -15,7 +15,7 @@
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格與技術棧)
 [![Platform](https://img.shields.io/badge/platform-Chromium-orange?style=for-the-badge&logo=googlechrome&logoColor=white)](#前置條件與環境需求)
 [![Build](https://img.shields.io/badge/build-zero--build--step-informational?style=for-the-badge)](#技術規格與技術棧)
-[![Example Repo](https://img.shields.io/badge/Example_Repo-Threadfolio--Example-8A2BE2?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Scorpio-meow/Threadfolio-Example)
+[![Example Site](https://img.shields.io/badge/Example_Site-Threadfolio-8A2BE2?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threadfolio-Example/)
 
 ---
 
@@ -103,12 +103,12 @@ Threads 內建的「儲存」只能在 Threads 裡回頭翻看。想把喜歡的
 
 ## 生態系與關聯專案
 
-本專案作為「**資料擷取與本機管理中樞**」，與前端展示網站 **[Threadfolio](https://github.com/Scorpio-meow/Threadfolio-Example)** 構成完整的 Threads 內容收藏與公開展示生態系：
+本專案作為「**資料擷取與本機管理中樞**」，與前端展示網站 **[Threadfolio](https://scorpio-meow.github.io/Threadfolio-Example/)** 構成完整的 Threads 內容收藏與公開展示生態系：
 
 | 專案名稱 | 專案定位與職責 | 專案連結 |
 | :--- | :--- | :--- |
 | **Threadkeep** (本專案) | 瀏覽器擴充功能：負責 Threads 貼文智慧擷取、DOM 雜訊清洗、本機儲存、即時預覽與多格式匯出 | [GitHub 專案庫](https://github.com/Scorpio-meow/Threadkeep) |
-| **Threadfolio** (關聯專案) | 前端展示網站：接收本擴充功能匯出的「精選貼文資料 (threads-featured-data-*.js)」，提供響應式卡片流與展示介面 | [Threadfolio-Example 範例專案庫](https://github.com/Scorpio-meow/Threadfolio-Example) |
+| **Threadfolio** (關聯專案) | 前端展示網站：接收本擴充功能匯出的「精選貼文資料 (threads-featured-data-*.js)」，提供響應式卡片流與展示介面 | [範例網站](https://scorpio-meow.github.io/Threadfolio-Example/)、[範例專案庫](https://github.com/Scorpio-meow/Threadfolio-Example) |
 
 ### 雙專案協同運作流程
 

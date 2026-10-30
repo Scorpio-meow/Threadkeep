@@ -6,7 +6,7 @@
 ## [Unreleased]
 
 ### 改善
-- README、llms.txt 與介紹頁裡的 Threadfolio 連結改指向公開的範例專案 [Threadfolio-Example](https://github.com/Scorpio-meow/Threadfolio-Example)，原本的 Threadfolio 網站連結移除。
+- README、llms.txt 與介紹頁裡的 Threadfolio 連結改指向公開的[範例網站](https://scorpio-meow.github.io/Threadfolio-Example/)與它的原始碼 [Threadfolio-Example](https://github.com/Scorpio-meow/Threadfolio-Example)，可以直接 clone 下來換上自己匯出的精選資料；原本的 Threadfolio 網站連結移除。
 
 ## [2.8.0] - 2026-10-25
 
