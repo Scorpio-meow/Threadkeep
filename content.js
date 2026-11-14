@@ -516,7 +516,7 @@ function extractEmbedCodeFromDialog(dialog) {
   return bestValue;
 }
 async function saveArticleFromEmbedDialog(dialog, context = {}) {
-  const embedCode = extractEmbedCodeFromDialog(dialog);
+  const embedCode = applyEmbedTheme(extractEmbedCodeFromDialog(dialog));
   if (!embedCode) {
     console.warn('[Threadkeep] 對話框中沒有可讀取的內嵌程式碼');
     showNotification('找不到可儲存的內嵌程式碼', { type: 'error' });

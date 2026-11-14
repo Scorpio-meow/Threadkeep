@@ -2,10 +2,10 @@
 
 本專案所有對使用者有影響的變更都記錄在這份文件。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/)。
 
-
-## [Unreleased]
+## [2.9.0] - 2026-11-14
 
 ### 改善
+- 儲存的內嵌程式碼改為 Threads 內嵌對話框裡的「自動」主題（`<blockquote>` 加上 `data-theme="auto"`），嵌入網頁後會依讀者系統的淺色／深色設定切換；原本存的是預設的「白色」。控制面板在貼文沒有內嵌碼時自動產生的備用程式碼也一併改成「自動」。已儲存的貼文會在下次開啟 Popup 或控制面板時自動轉換並寫回，匯入的貼文在寫入時就轉換；只改 `data-theme`，其他欄位不動。寫回失敗時列表照常顯示，下次開啟再試。
 - README、llms.txt 與介紹頁裡的 Threadfolio 連結改指向公開的[範例網站](https://scorpio-meow.github.io/Threadfolio-Example/)與它的原始碼 [Threadfolio-Example](https://github.com/Scorpio-meow/Threadfolio-Example)，可以直接 clone 下來換上自己匯出的精選資料；原本的 Threadfolio 網站連結移除。
 
 ## [2.8.0] - 2026-10-25
@@ -36,7 +36,6 @@
 - Threads 頁面的兩句錯誤通知改用全形標點：「儲存空間已滿，請開啟擴充功能清理舊貼文」「擴充功能已失效，請重新載入頁面」。
 - 控制面板匯入失敗的提示改為錯誤樣式（原本與一般提示相同）。
 - Popup 按「取消選取」後，按鈕隱藏會讓焦點掉回頁首；現在焦點移到「全選」，與控制面板一致。
-
 
 ## [2.7.0] - 2026-10-24
 

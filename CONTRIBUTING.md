@@ -65,7 +65,7 @@
 
 ## 架構規範
 
-完整說明見 README 的[開發注意事項與架構規範](./README.md#開發注意事項與架構規範)，重點如下：
+完整說明見 README 的[開發注意事項與架構規範](./README.md#開發注意事項與架構規範)，系統架構、核心演算法與資料模型見 README 的[技術說明](./README.md#技術說明)。重點如下：
 
 - **零外部依賴**：不引入 npm 執行期套件、外部 CDN 腳本或框架。
 - **嚴格 CSP**：HTML 禁止 `style` 屬性（`style="..."`）與行內事件（`onclick="..."`），事件一律用 `addEventListener` 綁定；需要由程式決定的數值（瀑布流跨列數、游標光斑位置、淡入順序等）由 JS 設定 CSS 變數或單一屬性。
@@ -76,6 +76,7 @@
 - **顏色與焦點樣式**：顏色一律定義在 `ui.css` 的 `:root`，用 `light-dark(淺色值, 深色值)` 同時給出兩種模式（`data-theme` 會改 `color-scheme`，所以手動選淺色或深色也會生效），文字對比兩種模式都至少 4.5:1。角色分工：墨黑 `--primary` 給主要按鈕、勾選框、開關與按下的分類；香檳金 `--accent` 給選中的卡片、焦點、分頁底線、進度條與重點數字；`--danger` 只給刪除、清除與失效。只靠背景色區分的狀態（例如選取、目前的分頁），要在 `@media (forced-colors: active)` 區塊用系統顏色補上外框。按鈕、連結、勾選框與輸入框的焦點一律是 `outline: 2px solid var(--focus)`（輸入框 `outline-offset: 0`），要確認沒有被 `overflow` 裁切。
 - **版面與字型**：先用 `ui.css` 現成的元件（`.btn` 各變體、`.field`、`.select`、`.check`、`.switch`、`.menu`、`.modal-*`、`.toast`、`.tag-chip`、`.badge`）。底色分 `--paper`、`--sheet`、`--raised`、`--wash` 幾階，線條用 0.5px 的 `--hairline`，圓角只用 6px（按鈕、欄位）與 10px（卡片、浮層），陰影只給浮層與滑過的卡片。字級只用 12、14、16、20px（`--fs-meta`、`--fs-ui`、`--fs-read`、`--fs-title`）；字重寫 `var(--fw-regular)` 到 `var(--fw-semibold)`，深色模式會自動減 40。內文字型是 Geist 與 Noto Sans TC，程式碼 Geist Mono，標題與數字用 `--font-display`（Playfair Display、Noto Serif TC），數字請加 `.num` 取得等高等寬數字。新的動態效果要在 `prefers-reduced-motion: reduce` 下關閉。
 - **聲音**：新增音效時把 Ogg Opus 檔放進 `sounds/`、登記到 `sound.js` 的 `SOUND_EFFECT_FILES`，只在真的成功或失敗時呼叫 `playSound`（使用者取消不播）；要在 Threads 頁面播放還得加進 `manifest.json` 的 `web_accessible_resources`。音效只能補充，畫面與 `#liveStatus` 仍要傳達同樣的結果。音源必須有明確的 CC0 或相容授權。
+- **內嵌碼主題**：存下的內嵌碼一律是 `data-theme="auto"`。新的寫入路徑請經過 `article-store.js` 的 `toArticleRecords`（內部呼叫 `withEmbedTheme`）或直接呼叫 `applyEmbedTheme`；讀取時 `loadArticleRecords` 會以 `migrateEmbedThemes` 轉換舊貼文。
 - **權限最小化**：新增 `permissions` 或 `host_permissions` 前請先在 Issue 說明理由。
 
 修改 `content.js` 的清洗函式（`cleanExtractedPostContent`、`isLikelyThreadsFallbackDescription`）時另外注意：
@@ -89,6 +90,7 @@
 本專案目前沒有自動化測試，送出 PR 前請依改動範圍手動驗證：
 
 - **擷取**：在動態牆、貼文頁與個人檔案頁各點一次「取得內嵌程式碼」，確認出現儲存提示，內文保留換行且不含 UI 雜訊；`/post/` 與 `/t/` 兩種網址都要能存。
+- **內嵌主題**：存下的內嵌碼開頭要是 `<blockquote data-theme="auto"`。用 2.8.0（含）以前的版本各存一篇（或匯入一份含白色與深色內嵌碼的備份），升級後打開控制面板，兩篇都要變成 `data-theme="auto"`，內文、標籤與時間不變；再打開一次，主控台不能再出現「已將 N 篇貼文的內嵌程式碼改為「auto」主題」。匯入後立刻匯出，檔案裡也要是 `data-theme="auto"`。
 - **Popup**：搜尋、6 種篩選、6 種排序、單篇刪除與復原、複製內嵌碼、「更多」選單的匯入（選檔與貼上）與三種匯出，以及「取消選取」後焦點回到「全選」。
 - **控制面板**：分類格與篇數、標籤雲與作者雲篩選（含「全部 N 個…」展開）、瀑布流在不同視窗寬度與「展開全文」後沒有重疊、批次勾選與半選狀態、批次列的刪除與復原、匯出選單的範圍標題、預覽抽屜（點作者名稱與卡片空白處開啟、`ESC`／點背景／關閉鈕關閉後焦點回到卡片、左右方向鍵、載入逾時與重新載入，以及 Threads 不提供內嵌的貼文會顯示中文錯誤提示而不是 Meta 的錯誤頁）。
 - **更新貼文資料**：暫停、繼續、停止；勾選與未勾選時的更新範圍；失效貼文的標記與恢復；更新後匯出完整備份，只開放登入者觀看的貼文應有 `"embeddable": false`，一般貼文為 `true`。
@@ -101,7 +103,7 @@
 ## 文件同步
 
 - 新增或修改儲存欄位時，同步更新 README 的[資料模型與儲存 Schema](./README.md#資料模型與儲存-schema)、[llms.txt](./llms.txt)（英文）與匯入匯出模組。
-- 使用者看得到的行為改變，請同步更新 README 對應段落；若介紹頁（`docs/index.html`）有提到，也一併修改。
+- 使用者看得到的行為改變，請同步更新 README 對應段落；若介紹頁（`docs/index.html`）有提到，也一併修改。README 的章節由使用者往開發者排列：操作與介面的改變寫在「功能」「使用指南」或「設定與權限」，內部實作寫在「技術說明」。
 - 過濾規則的數量（目前為 44 條）寫在 README 與 llms.txt 裡，增減規則時請一起更新。
 - 版本號與 [CHANGELOG.md](./CHANGELOG.md) 由維護者在發版時整理，PR 不需要修改 `manifest.json` 的 `version`，但請在 PR 說明中寫出這次變更對使用者的影響。
 
@@ -109,7 +111,7 @@
 
 沿用 [Conventional Commits](https://www.conventionalcommits.org/zh-hant/v1.0.0/) 格式，說明以繁體中文撰寫：
 
-```
+```text
 <type>(<scope>): <說明>
 ```
 

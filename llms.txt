@@ -3,7 +3,7 @@
 
 ## Core Metadata
 - Project Name: Threadkeep (renamed in 2.7.0; formerly "Threads Code Saver" / 「Threads 程式碼儲存器」). The repository was renamed from `threads-embedded-code` to `Threadkeep` (GitHub redirects the old repository URL; the old GitHub Pages URL does not redirect, so use https://scorpio-meow.github.io/Threadkeep/). Console messages use the `[Threadkeep]` prefix.
-- Current Version: 2.8.0 (redesign, sound effects, and background music; see the 2.8.0 entry in CHANGELOG.md)
+- Current Version: 2.9.0 (embed codes saved with the "自動" (auto) theme, existing posts converted on load; see the 2.9.0 entry in CHANGELOG.md)
 - Specification: Google Chrome Extensions Manifest V3
 - Tech Stack: Pure Native JavaScript (ES6+), HTML5, CSS3 Custom Properties with `light-dark()`, the Popover API, and the Web Audio API (Zero external dependencies, zero compilation/build step). `manifest.json` sets `minimum_chrome_version` to 123 because of `light-dark()`.
 - Data Persistence: Browser local storage (chrome.storage.local with the `unlimitedStorage` permission, so the default 10MB quota does not apply; privacy-first). Saved data never leaves the browser; network access is limited to Threads domains (live preview and background updates) plus the Google Fonts stylesheet imported by ui.css. Sound effects and background music ship inside the extension (`sounds/`).
@@ -15,8 +15,8 @@
 ## Core Files
 - [manifest.json](./manifest.json): Extension configuration manifest declaring Manifest V3 specs, permissions (storage, unlimitedStorage, tabs, scripting), host matches for threads.com and threads.net, `all_frames: true` content script injection (`article-store.js`, `sound.js`, then `content.js`), strict CSP headers, `minimum_chrome_version: "123"`, and `web_accessible_resources` that expose only `sounds/save.ogg` and `sounds/error.ogg` to the four Threads hosts.
 - [theme.js](./theme.js): Theme preference script loaded in the `<head>` of the popup and dashboard; applies the cached `data-theme` immediately, syncs with `chrome.storage.local`, and wires the "外觀" select inside the dashboard's 「設定」 popover menu.
-- [article-store.js](./article-store.js): Shared storage layer loaded by the content script, the popup, and the dashboard. It derives each post's storage key, migrates the legacy `savedArticles` array, reads, writes, and removes individual records, merges batch-update fields into stored records, and applies per-key `chrome.storage.onChanged` events to an in-memory list. It also holds the preference storage keys (`THEME_PREFERENCE_KEY` = `themePreference`, used by theme.js and content.js; `SOUND_EFFECTS_KEY` = `soundEffects` and `BACKGROUND_MUSIC_KEY` = `backgroundMusic`, used by sound.js) and the shared embeddable-check helpers (`getThreadsEmbedPath`, `checkEmbeddable`, `applyEmbeddableResult`, `pickEmbeddableFields`).
-- [content.js](./content.js): Primary Content Script. On Threads pages it listens for clicks on the "Get embed code" item through a single delegated capture-phase listener, checks for the official embed dialog at most once per animation frame after DOM mutations (no page-wide button scans or periodic polling), intercepts the dialog, and after a click waits up to 8 seconds (`EMBED_DIALOG_TIMEOUT_MS`, checking every 250ms) for the embed code before reporting a missing dialog or empty dialog; if Threads shows its own error message ("發生錯誤…技術錯誤" / "Something went wrong", outside post containers) during that wait, it stops and reports immediately that Threads failed and the post was not saved. It also scores embed candidates, extracts top-level text containers, filters image-only descriptions, and strips UI/timestamp noise. Every save or error notification also calls `playSound('save')` or `playSound('error')` from sound.js. Inside `/embed` iframes it switches to `handleEmbedFrameResize()` and reports the measured `.Embed` height to the parent window.
+- [article-store.js](./article-store.js): Shared storage layer loaded by the content script, the popup, and the dashboard. It derives each post's storage key, migrates the legacy `savedArticles` array, reads, writes, and removes individual records, merges batch-update fields into stored records, and applies per-key `chrome.storage.onChanged` events to an in-memory list. It also holds the preference storage keys (`THEME_PREFERENCE_KEY` = `themePreference`, used by theme.js and content.js; `SOUND_EFFECTS_KEY` = `soundEffects` and `BACKGROUND_MUSIC_KEY` = `backgroundMusic`, used by sound.js) the shared embeddable-check helpers (`getThreadsEmbedPath`, `checkEmbeddable`, `applyEmbeddableResult`, `pickEmbeddableFields`), and the embed theme helpers: `applyEmbedTheme` sets `data-theme="auto"` (`EMBED_THEME`) on the first `<blockquote>`, replacing any existing `data-theme`, `withEmbedTheme` applies it to one article (returning the same object when nothing changes) and is used by `toArticleRecords`, so imports, undo restores, and the legacy migration are themed before they are written; `migrateEmbedThemes`, called by `loadArticleRecords`, rewrites stored posts whose `embedCode` is not yet auto and writes back only the changed records. If that write fails it logs a warning and still returns the themed list, so the popup and dashboard keep loading and the next open retries.
+- [content.js](./content.js): Primary Content Script. On Threads pages it listens for clicks on the "Get embed code" item through a single delegated capture-phase listener, checks for the official embed dialog at most once per animation frame after DOM mutations (no page-wide button scans or periodic polling), intercepts the dialog, and after a click waits up to 8 seconds (`EMBED_DIALOG_TIMEOUT_MS`, checking every 250ms) for the embed code before reporting a missing dialog or empty dialog; if Threads shows its own error message ("發生錯誤…技術錯誤" / "Something went wrong", outside post containers) during that wait, it stops and reports immediately that Threads failed and the post was not saved. The dialog opens on Threads' default "白色" (light) theme, so the captured code is passed through `applyEmbedTheme` before saving; the result matches the dialog's "自動" (auto) theme code exactly. It also scores embed candidates, extracts top-level text containers, filters image-only descriptions, and strips UI/timestamp noise. Every save or error notification also calls `playSound('save')` or `playSound('error')` from sound.js. Inside `/embed` iframes it switches to `handleEmbedFrameResize()` and reports the measured `.Embed` height to the parent window.
 - [styles.css](./styles.css): Injected notification styles for Threads web pages (ink #1a1814 with a champagne hairline, #22201c in dark mode, red for errors), including live-region toast styling and prefers-reduced-motion fallbacks.
 - [ui.css](./ui.css): Shared design system loaded by the popup and the dashboard before their own stylesheets: `light-dark()` color tokens, fonts and font sizes, radii, motion curves, and shared components (`.btn` variants, `.field`, `.select`, `.search`, `.check`, `.switch` with `role="switch"`, `.menu` popovers, `.modal-*`, `.choice-*`, `.toast*`, `.tag-chip`, `.badge`, `.empty-state`, `.copy-btn` feedback), the drifting ambient light (`body::before`), the cursor spotlight (`body::after`), the per-card spotlight (`.article-card::before`), and reduced-motion / forced-colors fallbacks.
 - [ui.js](./ui.js): Shared behavior. `setupMenus()` positions each `.menu[popover]` under its `popovertarget` trigger (flipping above when there is no room, aligned to the trigger's end unless `data-align="start"`), closes it after a `button.menu-item` click, and closes open menus on resize. `setupAmbientLight()` tracks the pointer (ignoring touch) with at most one `requestAnimationFrame` per frame, writing `--pointer-x`/`--pointer-y` on `<html>` (plus `data-pointer="active"`, removed on mouseleave) and `--spot-x`/`--spot-y` on the hovered `.article-card`.
@@ -30,7 +30,7 @@
 - [dashboard.js](./dashboard.js): Dashboard core controller managing filter navigation, masonry sizing, the preview drawer, the sequential asynchronous update queue (with pause/resume/cancel signals), tag/author clouds, batch operations, undo snapshots, in-page confirmation dialogs, the greeting card, and sound/music wiring.
 - [icons/](./icons/): Extension icons at 16, 32, 48, and 128 px (`icon-16.png`, `icon-32.png`, `icon-48.png`, `icon-128.png`).
 - [images/](./images/): `mascot-320.webp`, the scorpion-cat mascot shown in the popup and dashboard empty states (no saved posts, or no posts matching the current filter), the dashboard welcome card, and the preview drawer while it loads. It is a copy of `docs/assets/img/mascot-320.webp`.
-- [README.md](./README.md): Comprehensive Traditional Chinese technical documentation with Mermaid diagrams, schemas, and developer guide.
+- [README.md](./README.md): Traditional Chinese documentation ordered from users to developers: introduction, quick start, features, usage guide (dashboard operations, preview shortcuts, export formats and examples, import pipeline), settings and permissions, FAQ, then a technical reference (specs, project tree, file responsibilities, Mermaid architecture diagrams, core algorithms, the SavedArticle data model), contributing rules, and a documentation index.
 - [CHANGELOG.md](./CHANGELOG.md): Version history in Traditional Chinese, following Keep a Changelog. The README's changelog section only links here.
 - [llms.txt](./llms.txt): Structured technical specifications for AI agents and LLM/RAG indexing pipelines.
 - [docs/](./docs/): GitHub Pages introduction site, not shipped with the extension. Its interactive cleaning demo (`docs/assets/js/cleaner-worker.js`) fetches `content.js` from the `main` branch inside a Web Worker and calls `cleanExtractedPostContent` and `isLikelyThreadsFallbackDescription` directly, so renaming or removing either function breaks the demo. The version shown on the page is read from the `main` branch's `manifest.json` the same way. Screenshots live in `docs/assets/img/`, each with a `-dark` variant swapped in by `syncThemedImages()` in `site.js`. `docs/assets/video/` holds the muted tag-filter demo loop (`tag-filter.mp4` and `tag-filter-dark.mp4`, with webp posters) for the 「標籤與作者排行」 tab: it autoplays only when visible and when reduced motion is not requested, shows only the poster under reduced motion or without JavaScript, and has a play/pause button.
@@ -43,58 +43,44 @@ Versions up to 2.2.1 stored every post in one array under the `savedArticles` ke
 ### SavedArticle Interface
 ```typescript
 interface SavedArticle {
-  /** Unique primary identifier (new saves: embed_[timestamp]_[random]; imports: imported_[timestamp]_[random], or the id carried by the source file) */
   id: string;
-
-  /** Canonical Threads post URL, used as unique key for deduplication and updates */
   postLink: string;
-
-  /** Official Threads native <blockquote> embed HTML code */
   embedCode: string;
-
-  /** Publication timestamp in ISO 8601 standard format */
   timestamp: string;
-
-  /** Formatted publication title string (e.g., "May 29, 2026, 10:00 AM") */
   timestampTitle: string;
-
-  /** Local storage timestamp in ISO 8601 format */
   savedAt: string;
-
-  /** Sanitized plaintext content preserving natural paragraph line breaks */
   content: string;
-
-  /** Author handle from the post header's author link text (normally without @, e.g., "username"), falling back to the username in postLink, then to "未知作者" */
   author: string;
-
-  /** Tags from official hashtag links and inline #hashtags */
   tags: string[];
-
-  /** Post operational status */
-  status: 'active' | 'expired';
-
-  /** Timestamp when the post was marked as expired (ISO 8601) */
+  status?: 'active' | 'expired' | '';
   expiredAt?: string;
-
-  /** Specific reason for expiration */
-  expiredReason?: 'redirected' | 'post-not-found' | 'fallback-summary' | 'unknown';
-
-  /** Timestamp of the last status check attempt (ISO 8601) */
+  expiredReason?: 'redirected' | 'post-not-found' | 'fallback-summary' | 'unknown' | '';
   expiredCheckedAt?: string;
-
-  /** Timestamp when publication timestamp was last updated (ISO 8601) */
   timestampUpdatedAt?: string;
-
-  /** Whether Threads serves an embed card to a cookieless request: false when /embed answers HTTP 500, true when it answers 200 with a .Embed container; absent until a check is conclusive, and later inconclusive checks keep the previous value */
   embeddable?: boolean;
-
-  /** When the last conclusive embeddable check ran (ISO 8601) */
   embeddableCheckedAt?: string;
-
-  /** Source format indicator, set only by popup .js imports (dashboard imports and .json imports leave it unset) */
   importedFrom?: 'full-data-file' | 'js-embed-file';
 }
 ```
+
+### Field Notes
+- `id`: unique identifier. New saves use `embed_<timestamp>_<random>`; imports use `imported_<timestamp>_<random>`, or keep the id carried by the source file.
+- `postLink`: canonical Threads post URL; it derives the storage key and drives deduplication and updates.
+- `embedCode`: the official Threads `<blockquote>` embed code, carrying `data-theme="auto"` since 2.9.0.
+- `timestamp`: publication time (ISO 8601). When saving cannot find it, the save time is used instead.
+- `timestampTitle`: formatted publication time taken from the page (e.g., "May 29, 2026, 10:00 AM"); empty when not found.
+- `savedAt`: when the post was stored locally (ISO 8601).
+- `content`: sanitized plain text that keeps natural paragraph breaks.
+- `author`: handle from the post header's author link text (normally without @, e.g., "username"), falling back to the username in `postLink`, then to "未知作者".
+- `tags`: official hashtag links and inline #hashtags.
+- `status`: absent on posts just saved on Threads; written as `active` or `expired` by the first "更新貼文資料" run. Full-backup imports may store an empty string. Expiry checks use `status === 'expired'` or the presence of `expiredAt` / `expiredReason`.
+- `expiredAt`: when the post was marked expired (ISO 8601).
+- `expiredReason`: `redirected`, `post-not-found`, `fallback-summary`, or `unknown`; may be an empty string after a full-backup import.
+- `expiredCheckedAt`: when the check that marked the post expired ran (ISO 8601). Clearing the expired status removes `expiredAt`, `expiredReason`, and `expiredCheckedAt`.
+- `timestampUpdatedAt`: when an update run last refreshed the post successfully (ISO 8601).
+- `embeddable`: whether Threads serves an embed card to a cookieless request: false when `/embed` answers HTTP 500, true when it answers 200 with a `.Embed` container; absent until a check is conclusive, and later inconclusive checks keep the previous value.
+- `embeddableCheckedAt`: when the last conclusive embeddable check ran (ISO 8601).
+- `importedFrom`: set only by popup `.js` imports (`full-data-file` for featured or full exports, `js-embed-file` for embed-only exports); dashboard imports and `.json` imports leave it unset.
 
 ### Removed in 2.2.0
 - The `authorUrl` field was removed. Nothing read it (UI, search, filters, statistics, and all three exports ignored it), and it can be derived from `author` or `postLink`. Newly saved and imported records no longer include it; records saved by older versions may still hold a stale value, which nothing reads.
@@ -106,6 +92,17 @@ interface SavedArticle {
 - Follow-up cleanup: `refreshEmbedCode` and its private `buildThreadsEmbedCode` copy were deleted from popup.js because their button had already been removed from the markup, and the `lastUpdated` field they wrote was dropped from the schema. Exports and imports never carried it; only records saved by older versions may still hold a stale value, which nothing reads.
 
 ## Key Concepts & Algorithms
+
+### 0. Data Flow
+```mermaid
+flowchart LR
+    A["Threads page: 取得內嵌程式碼 dialog"] -->|"content.js: score candidates, applyEmbedTheme, clean text"| B[("chrome.storage.local<br/>post:CODE per post")]
+    B -->|"loadArticleRecords + migrateEmbedThemes"| C["popup.js / dashboard.js"]
+    C -->|"更新貼文資料: reusable worker tab"| D["Threads post page + /embed check"]
+    D -->|"mergeArticleUpdates every 20 posts"| B
+    C -->|"export"| E["threads-*-YYYY-MM-DD.js"]
+    E -->|"import via toArticleRecords"| B
+```
 
 ### 1. Top-Level Text Container Layout Extraction
 - Targets primary content nodes: `span[class*="xo1l8bm"][dir="auto"]`, `span[class*="xi7mnp6"][dir="auto"]`, and `div[class*="x1iorvi4"][dir="auto"]`.
@@ -212,14 +209,14 @@ All three exports are selection-aware: when posts are checked only those are exp
 1. Embed Only: `threads-embed-codes-YYYY-MM-DD.js`
    ```javascript
    const posts = [
-       '<blockquote class="text-post-media" data-text-post-permalink="...">...</blockquote>'
+       '<blockquote data-theme="auto" class="text-post-media" data-text-post-permalink="...">...</blockquote>'
    ];
    ```
 2. Featured Data: `threads-featured-data-YYYY-MM-DD.js` (Formatted for Threadfolio; author without @ prefix; includes `embeddable` and `embeddableCheckedAt` only for posts that have been checked)
    ```javascript
    const posts = [
        {
-           "embedCode": "...",
+           "embedCode": "<blockquote data-theme=\"auto\" class=\"text-post-media\" ...>...</blockquote>",
            "postLink": "https://www.threads.com/@user/post/...",
            "author": "user",
            "content": "...",
@@ -231,7 +228,7 @@ All three exports are selection-aware: when posts are checked only those are exp
    ```javascript
    const posts = [
        {
-           "embedCode": "...",
+           "embedCode": "<blockquote data-theme=\"auto\" class=\"text-post-media\" ...>...</blockquote>",
            "postLink": "https://www.threads.com/@user/post/...",
            "author": "user",
            "content": "...",
@@ -270,6 +267,16 @@ All three exports are selection-aware: when posts are checked only those are exp
 - Click **Load unpacked** and select the project root directory.
 - Conventions: no `style` attributes or inline event handlers in HTML (strict CSP; runtime values such as masonry spans, spotlight positions, and stagger indexes are set from JS as CSS variables or single properties), use ui.css tokens and components with only the 12/14/16/20px sizes, register new sounds in `SOUND_EFFECT_FILES` (and in `web_accessible_resources` if Threads pages need them), no native browser dialogs, new modals must implement focus trapping and focus restoration, and any stored-field change must be mirrored in README.md, this file, and the export/import modules.
 - Community files (Traditional Chinese): [CONTRIBUTING.md](./CONTRIBUTING.md) (setup, manual test checklist, commit and PR flow), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md), [SECURITY.md](./SECURITY.md) (vulnerabilities go through GitHub private vulnerability reporting, not public issues), [ACCESSIBILITY.md](./ACCESSIBILITY.md) (WCAG 2.2 AA target and known limitations). Issue forms and the PR template live in `.github/`.
+
+## Documentation
+- [README: Quick Start](./README.md#快速開始): requirements, loading the unpacked extension, saving the first post.
+- [README: Features](./README.md#功能): feature overview table and per-feature details.
+- [README: Usage Guide](./README.md#使用指南): dashboard operations, preview shortcuts, export formats and examples, import pipeline.
+- [README: Settings & Permissions](./README.md#設定與權限): preference keys and defaults, permissions, CSP.
+- [README: Technical Reference](./README.md#技術說明): architecture diagrams, core algorithms, data model.
+- [CHANGELOG.md](./CHANGELOG.md): release history (Keep a Changelog, Traditional Chinese).
+- [CONTRIBUTING.md](./CONTRIBUTING.md): development setup, reload rules per file, manual test checklist, commit and PR flow.
+- [ACCESSIBILITY.md](./ACCESSIBILITY.md), [SECURITY.md](./SECURITY.md), [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 ## License
 Licensed under the [MIT License](./LICENSE).

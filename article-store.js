@@ -5,6 +5,15 @@ const THEME_PREFERENCE_KEY = 'themePreference';
 const SOUND_EFFECTS_KEY = 'soundEffects';
 const BACKGROUND_MUSIC_KEY = 'backgroundMusic';
 const EMBED_CHECK_TIMEOUT_MS = 10000;
+const EMBED_THEME = 'auto';
+function applyEmbedTheme(embedCode) {
+  return embedCode.replace(/<blockquote\b([^>]*)>/i, (_, attrs) => `<blockquote data-theme="${EMBED_THEME}"${attrs.replace(/\sdata-theme=(["'])[^"']*\1/i, '')}>`);
+}
+function withEmbedTheme(article) {
+  if (typeof article.embedCode !== 'string') return article;
+  const embedCode = applyEmbedTheme(article.embedCode);
+  return embedCode === article.embedCode ? article : { ...article, embedCode };
+}
 function getThreadsEmbedPath(postLink) {
   if (!postLink || typeof postLink !== 'string') return '';
   const cleanLink = postLink.split('?')[0].replace(/\/+$/, '');
@@ -82,7 +91,7 @@ function toArticleRecords(articles) {
   articles.forEach((article) => {
     const key = getArticleStorageKey(article);
     if (!(key in records)) {
-      records[key] = article;
+      records[key] = withEmbedTheme(article);
     }
   });
   return records;
@@ -123,10 +132,29 @@ async function migrateLegacyArticles() {
   await chrome.storage.local.remove(LEGACY_ARTICLES_KEY);
   console.log(`[Threadkeep] 已將 ${legacyArticles.length} 筆舊資料搬移為 ${keys.length} 篇（合併 ${legacyArticles.length - keys.length} 筆重複）`);
 }
+async function migrateEmbedThemes(records) {
+  const updates = {};
+  Object.keys(records).forEach((key) => {
+    const article = withEmbedTheme(records[key]);
+    if (article !== records[key]) {
+      updates[key] = article;
+    }
+  });
+  const count = Object.keys(updates).length;
+  if (count === 0) return records;
+  try {
+    await chrome.storage.local.set(updates);
+    console.log(`[Threadkeep] 已將 ${count} 篇貼文的內嵌程式碼改為「${EMBED_THEME}」主題`);
+  } catch (error) {
+    console.warn('[Threadkeep] 內嵌程式碼主題轉換寫入失敗，下次開啟會再試:', error);
+  }
+  return { ...records, ...updates };
+}
 async function loadArticleRecords() {
   await migrateLegacyArticles();
   const items = await chrome.storage.local.get(null);
-  return sortArticlesBySavedAt(Object.keys(items).filter(isArticleStorageKey).map((key) => items[key]));
+  const records = Object.fromEntries(Object.entries(items).filter(([key]) => isArticleStorageKey(key)));
+  return sortArticlesBySavedAt(Object.values(await migrateEmbedThemes(records)));
 }
 async function saveArticleRecords(articles) {
   if (articles.length === 0) return;
