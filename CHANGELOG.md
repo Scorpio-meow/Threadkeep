@@ -2,11 +2,17 @@
 
 本專案所有對使用者有影響的變更都記錄在這份文件。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.0.0/)。
 
+## [2.9.1] - 2026-11-14
+
+### 修正
+- Popup「清除全部」的確認視窗原本寫「此動作無法復原」，但清除後其實可以在提示消失前按「復原」還原；現在改為說明可以復原，並指向「更多」選單裡實際的「完整備份」項目，與控制面板一致。
+
 ## [2.9.0] - 2026-11-14
 
 ### 改善
 - 儲存的內嵌程式碼改為 Threads 內嵌對話框裡的「自動」主題（`<blockquote>` 加上 `data-theme="auto"`），嵌入網頁後會依讀者系統的淺色／深色設定切換；原本存的是預設的「白色」。控制面板在貼文沒有內嵌碼時自動產生的備用程式碼也一併改成「自動」。已儲存的貼文會在下次開啟 Popup 或控制面板時自動轉換並寫回，匯入的貼文在寫入時就轉換；只改 `data-theme`，其他欄位不動。寫回失敗時列表照常顯示，下次開啟再試。
 - README、llms.txt 與介紹頁裡的 Threadfolio 連結改指向公開的[範例網站](https://scorpio-meow.github.io/Threadfolio-Example/)與它的原始碼 [Threadfolio-Example](https://github.com/Scorpio-meow/Threadfolio-Example)，可以直接 clone 下來換上自己匯出的精選資料；原本的 Threadfolio 網站連結移除。
+- README 依「使用者 → 開發者」重新編排：開頭加上完整目錄與功能一覽表，新增偏好設定表（外觀、音效、背景音樂的儲存 key、值與預設），篩選與排序改成表格，常見問題改為逐題標題，資料模型改以欄位表說明，並修正與程式不符的描述：剛存下的貼文在第一次「更新貼文資料」前沒有 `status` 欄位、`expiredCheckedAt` 只在標記失效時寫入、「無發文時間」篩選的實際條件，以及「僅內嵌碼」匯出會移除所有 `<script>` 並跳脫反斜線與單引號。CONTRIBUTING 與 llms.txt 同步更新，SECURITY 的支援版本改為 2.9.x。
 
 ## [2.8.0] - 2026-10-25
 

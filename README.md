@@ -9,7 +9,7 @@
 [介紹頁](https://scorpio-meow.github.io/Threadkeep/) · [Threadfolio 範例網站](https://scorpio-meow.github.io/Threadfolio-Example/) · [回報問題](https://github.com/Scorpio-meow/Threadkeep/issues/new/choose) · [版本紀錄](./CHANGELOG.md)
 
 [![Website](https://img.shields.io/badge/Website-GitHub_Pages-D12F35?style=for-the-badge&logo=githubpages&logoColor=white)](https://scorpio-meow.github.io/Threadkeep/)
-[![Version](https://img.shields.io/badge/version-2.9.0-blue?style=for-the-badge)](./manifest.json)
+[![Version](https://img.shields.io/badge/version-2.9.1-blue?style=for-the-badge)](./manifest.json)
 [![Manifest](https://img.shields.io/badge/Manifest-V3-brightgreen?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/license-MIT-yellow?style=for-the-badge)](./LICENSE)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-success?style=for-the-badge)](#技術規格)
@@ -1052,7 +1052,7 @@ git clone https://github.com/Scorpio-meow/Threadkeep.git
 | [llms.txt](./llms.txt) | 給 AI 代理、LLM 檢索工具與 RAG 索引系統的結構化摘要（英文），包含核心模組路徑、資料模型、核心演算法與關聯專案資訊 |
 | [介紹頁](https://scorpio-meow.github.io/Threadkeep/) | 功能導覽、互動清洗示範與安裝教學 |
 
-目前版本是 **2.9.0**：存下的內嵌碼改用 Threads 內嵌對話框的「自動」主題，舊貼文在開啟 Popup 或控制面板時自動轉換。完整內容見 [CHANGELOG.md](./CHANGELOG.md#290---2026-11-14)。
+目前版本是 **2.9.1**：修正 Popup「清除全部」確認視窗誤寫「無法復原」的問題。2.9.0 起，存下的內嵌碼改用 Threads 內嵌對話框的「自動」主題，舊貼文在開啟 Popup 或控制面板時自動轉換。完整內容見 [CHANGELOG.md](./CHANGELOG.md#291---2026-11-14)。
 
 ---
 

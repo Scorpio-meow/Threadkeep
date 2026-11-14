@@ -1014,7 +1014,7 @@ async function clearAllArticles() {
   }
   const confirmed = await showConfirm(
     '清除全部資料',
-    `這會刪除已儲存的全部 ${allArticles.length} 篇貼文。此動作無法復原，建議先執行「匯出完整備份」。`,
+    `這會刪除已儲存的全部 ${allArticles.length} 篇貼文。清除後可在短時間內使用「復原」還原，但建議先從「更多」選單匯出「完整備份」。`,
     { confirmText: '清除全部' }
   );
   if (!confirmed) return;

@@ -3,7 +3,7 @@
 
 ## Core Metadata
 - Project Name: Threadkeep (renamed in 2.7.0; formerly "Threads Code Saver" / 「Threads 程式碼儲存器」). The repository was renamed from `threads-embedded-code` to `Threadkeep` (GitHub redirects the old repository URL; the old GitHub Pages URL does not redirect, so use https://scorpio-meow.github.io/Threadkeep/). Console messages use the `[Threadkeep]` prefix.
-- Current Version: 2.9.0 (embed codes saved with the "自動" (auto) theme, existing posts converted on load; see the 2.9.0 entry in CHANGELOG.md)
+- Current Version: 2.9.1 (the popup clear-all confirmation now says the action can be undone; since 2.9.0, embed codes are saved with the "自動" (auto) theme and existing posts are converted on load; see the 2.9.1 and 2.9.0 entries in CHANGELOG.md)
 - Specification: Google Chrome Extensions Manifest V3
 - Tech Stack: Pure Native JavaScript (ES6+), HTML5, CSS3 Custom Properties with `light-dark()`, the Popover API, and the Web Audio API (Zero external dependencies, zero compilation/build step). `manifest.json` sets `minimum_chrome_version` to 123 because of `light-dark()`.
 - Data Persistence: Browser local storage (chrome.storage.local with the `unlimitedStorage` permission, so the default 10MB quota does not apply; privacy-first). Saved data never leaves the browser; network access is limited to Threads domains (live preview and background updates) plus the Google Fonts stylesheet imported by ui.css. Sound effects and background music ship inside the extension (`sounds/`).
